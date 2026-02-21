@@ -395,14 +395,14 @@ class PlexClient:
             history_objects = await asyncio.to_thread(
                 admin_client.history,
                 ratingKey=item.ratingKey,
-                accountID=1 if self.is_admin else self.user_id,
+                accountID=self.user_id,
                 librarySectionID=item.librarySectionID,
             )
         except Exception:
             return []
 
         entries = [
-            (str(record.ratingKey), record.viewedAt.astimezone())
+            (str(record.ratingKey), self._normalize_local_datetime(record.viewedAt))
             for record in history_objects
             if record.viewedAt is not None
         ]
@@ -481,3 +481,11 @@ class PlexClient:
         if self._admin_client is None:
             raise RuntimeError("Plex client has not been initialized")
         return self._admin_client
+
+    @staticmethod
+    def _normalize_local_datetime(value: datetime) -> datetime:
+        """Return a timezone-aware datetime."""
+        local_tz = datetime.now().astimezone().tzinfo or UTC
+        if value.tzinfo is None:
+            return value.replace(tzinfo=local_tz)
+        return value.astimezone(local_tz)

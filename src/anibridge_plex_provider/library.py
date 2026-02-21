@@ -715,9 +715,12 @@ class PlexLibraryProvider(LibraryProvider):
         children = list(children_iter)
 
         if not children:
-            # python-plexapi returns datetimes in the local timezone (without tzinfo)
+            # python-plexapi returns a naive datetime in the local timezone (no tzinfo)
             return tuple(
-                HistoryEntry(library_key=rating_key, viewed_at=viewed_at.astimezone())
+                HistoryEntry(
+                    library_key=rating_key,
+                    viewed_at=PlexClient._normalize_local_datetime(viewed_at),
+                )
                 for rating_key, viewed_at in plex_history
             )
 
@@ -734,7 +737,9 @@ class PlexLibraryProvider(LibraryProvider):
 
         for child in children:
             last_viewed = (
-                child.lastViewedAt.astimezone() if child.lastViewedAt else None
+                PlexClient._normalize_local_datetime(child.lastViewedAt)
+                if child.lastViewedAt
+                else None
             )
             if last_viewed is None:
                 continue
