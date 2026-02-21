@@ -719,7 +719,7 @@ class PlexLibraryProvider(LibraryProvider):
             return tuple(
                 HistoryEntry(
                     library_key=rating_key,
-                    viewed_at=PlexClient._normalize_local_datetime(viewed_at),
+                    viewed_at=self._client._normalize_local_datetime(viewed_at),
                 )
                 for rating_key, viewed_at in plex_history
             )
@@ -737,7 +737,7 @@ class PlexLibraryProvider(LibraryProvider):
 
         for child in children:
             last_viewed = (
-                PlexClient._normalize_local_datetime(child.lastViewedAt)
+                self._client._normalize_local_datetime(child.lastViewedAt)
                 if child.lastViewedAt
                 else None
             )
