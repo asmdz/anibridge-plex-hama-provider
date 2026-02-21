@@ -224,6 +224,7 @@ class PlexLibraryEntry(LibraryEntry):
         """
         return self._media
 
+    @property
     async def review(self) -> str | None:
         """Fetch the user's review for this media item, if available.
 
