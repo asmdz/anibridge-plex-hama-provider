@@ -4,7 +4,7 @@ import base64
 import itertools
 from collections.abc import Sequence
 from datetime import datetime
-from logging import getLogger
+from logging import Logger
 from typing import TYPE_CHECKING, cast
 
 import plexapi.library as plexapi_library
@@ -32,8 +32,6 @@ from anibridge_plex_provider.webhook import PlexWebhook, PlexWebhookEventType
 
 if TYPE_CHECKING:
     from starlette.requests import Request
-
-_LOG = getLogger(__name__)
 
 _GUID_NAMESPACE_MAP: dict[MediaKind, dict[str, str]] = {
     MediaKind.MOVIE: {
@@ -134,6 +132,7 @@ class PlexLibraryMedia(LibraryMedia):
             return f"data:{content_type};base64,{encoded}"
 
         except Exception:
+            self._provider.log.exception("Failed to fetch Plex poster")
             return None
 
 
@@ -200,7 +199,7 @@ class PlexLibraryEntry(LibraryEntry):
         try:
             # Normalize to a 0-100 scale
             return round(float(self._item.userRating) * 10)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
 
     @property
@@ -496,18 +495,22 @@ class PlexLibraryProvider(LibraryProvider):
 
     NAMESPACE = "plex"
 
-    def __init__(self, *, config: dict | None = None) -> None:
+    def __init__(self, *, logger: Logger, config: dict | None = None) -> None:
         """Parse configuration and prepare provider defaults.
 
         Args:
+            logger (Logger): Injected AniBridge logger.
             config (dict | None): Optional configuration options for the provider.
         """
-        self.config = config or {}
+        super().__init__(logger=logger, config=config)
 
         url = self.config.get("url") or ""
         token = self.config.get("token") or ""
         user = self.config.get("user") or ""
         if not url or not token or not user:
+            self.log.warning(
+                "Plex provider is missing one or more required credentials"
+            )
             raise ValueError(
                 "The Plex provider requires 'url', 'token', and 'user' configuration "
                 "values"
@@ -522,6 +525,7 @@ class PlexLibraryProvider(LibraryProvider):
         self._genre_filter = list(self.config.get("genres") or [])
 
         self._client = PlexClient(
+            logger=self.log,
             url=self._plex_url,
             token=self._plex_token,
             user=self._plex_user,
@@ -538,6 +542,7 @@ class PlexLibraryProvider(LibraryProvider):
 
     async def initialize(self) -> None:
         """Connect to Plex and prepare provider state."""
+        self.log.debug("Initializing Plex provider client")
         await self._client.initialize()
         self._is_admin_user = self._client.is_admin
         self._user = LibraryUser(
@@ -546,18 +551,28 @@ class PlexLibraryProvider(LibraryProvider):
         )
 
         self._sections = self._build_sections()
-        self._community_client = PlexCommunityClient(self._plex_token)
+        self._community_client = PlexCommunityClient(
+            self._plex_token,
+            logger=self.log.getChild("community_client"),
+        )
 
         await self.clear_cache()
+        self.log.debug(
+            "Plex provider initialized for user id=%s with %s sections",
+            self._user.key,
+            len(self._sections),
+        )
 
     async def close(self) -> None:
         """Release any resources held by the provider."""
+        self.log.debug("Closing Plex provider")
         await self._client.close()
         if self._community_client is not None:
             await self._community_client.close()
             self._community_client = None
         self._sections.clear()
         self._section_map.clear()
+        self.log.debug("Closed Plex provider")
 
     def user(self) -> LibraryUser | None:
         """Return the Plex account represented by this provider.
@@ -601,6 +616,9 @@ class PlexLibraryProvider(LibraryProvider):
             Sequence[LibraryEntry]: The entries matching the criteria.
         """
         if not isinstance(section, PlexLibrarySection):
+            self.log.warning(
+                "Plex list_items received an incompatible section instance"
+            )
             raise TypeError(
                 "Plex providers expect section objects created by the provider"
             )
@@ -618,10 +636,10 @@ class PlexLibraryProvider(LibraryProvider):
         payload = await PlexWebhook.from_request(request)
 
         if not payload.account_id:
-            _LOG.debug("Webhook: No account ID found in payload")
+            self.log.warning("Webhook: No account ID found in payload")
             raise ValueError("No account ID found in webhook payload")
         if not payload.top_level_rating_key:
-            _LOG.debug("Webhook: No rating key found in payload")
+            self.log.warning("Webhook: No rating key found in payload")
             raise ValueError("No rating key found in webhook payload")
 
         if (
@@ -634,13 +652,13 @@ class PlexLibraryProvider(LibraryProvider):
             and self._user
             and self._user.key == str(payload.account_id)
         ):
-            _LOG.info(
+            self.log.debug(
                 f"Webhook: Matched webhook event {payload.event_type} to provider user "
                 f"ID {self._user.key} for sync"
             )
             return (True, (payload.top_level_rating_key,))
 
-        _LOG.debug(
+        self.log.debug(
             f"Webhook: Ignoring event {payload.event_type} for account ID "
             f"{payload.account_id}"
         )
@@ -694,7 +712,7 @@ class PlexLibraryProvider(LibraryProvider):
         try:
             return await self._community_client.get_reviews(metadata_id)
         except Exception:
-            _LOG.debug("Failed to fetch Plex review", exc_info=True)
+            self.log.exception("Failed to fetch Plex review")
             return None
 
     async def get_history(self, item: plexapi_video.Video) -> Sequence[HistoryEntry]:

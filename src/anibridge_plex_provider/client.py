@@ -8,6 +8,7 @@ from time import monotonic
 from typing import Literal
 from urllib.parse import urlparse
 
+from anibridge.library import ProviderLogger
 from plexapi.library import LibrarySection, MovieSection, ShowSection
 from plexapi.myplex import MyPlexAccount, MyPlexUser
 from plexapi.server import PlexServer
@@ -34,6 +35,7 @@ class PlexClient:
     def __init__(
         self,
         *,
+        logger: ProviderLogger,
         url: str,
         token: str,
         user: str | None = None,
@@ -43,6 +45,7 @@ class PlexClient:
         """Initialize client wrapper with optional section and genre filters.
 
         Args:
+            logger (ProviderLogger): Injected logger.
             url (str): The base URL of the Plex server.
             token (str): The Plex authentication token.
             user (str | None): The Plex user to connect as (admin if None).
@@ -51,6 +54,8 @@ class PlexClient:
             genre_filter (Sequence[str] | None): If provided, only include items that
                 have at least one genre in this list.
         """
+        self.log = logger
+
         self._url = url
         self._token = token
         self._user = user
@@ -120,7 +125,9 @@ class PlexClient:
         session: SelectiveVerifySession | None = None
         parsed = urlparse(self._url)
         if parsed.scheme == "https":
-            session = SelectiveVerifySession(whitelist=[parsed.hostname])
+            session = SelectiveVerifySession(
+                whitelist=[parsed.hostname], logger=self.log
+            )
 
         admin_client = PlexServer(
             self._url,
