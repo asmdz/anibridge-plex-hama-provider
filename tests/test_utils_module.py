@@ -1,5 +1,6 @@
 """Tests for the SelectiveVerifySession helper."""
 
+from logging import getLogger
 from typing import Any
 
 import pytest
@@ -26,7 +27,9 @@ def test_selective_verify_session_disables_verification(
     recorder = _Recorder()
     monkeypatch.setattr(requests.Session, "request", recorder.request)
 
-    session = SelectiveVerifySession(whitelist={"plex.tv"})
+    session = SelectiveVerifySession(
+        whitelist={"plex.tv"}, logger=getLogger("test.utils")
+    )
     result = session.request("GET", "https://plex.tv/library")
 
     assert result == "ok"
@@ -41,7 +44,9 @@ def test_selective_verify_session_passes_through_for_other_hosts(
     recorder = _Recorder()
     monkeypatch.setattr(requests.Session, "request", recorder.request)
 
-    session = SelectiveVerifySession(whitelist={"plex.tv"})
+    session = SelectiveVerifySession(
+        whitelist={"plex.tv"}, logger=getLogger("test.utils")
+    )
     result = session.request("GET", "https://example.com")
 
     assert result == "ok"

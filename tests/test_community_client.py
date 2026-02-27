@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from logging import getLogger
 from typing import cast
 
 import aiohttp
@@ -83,7 +84,7 @@ async def test_get_session_initializes_headers(monkeypatch: pytest.MonkeyPatch):
         DummySession,
     )
 
-    client = PlexCommunityClient("token")
+    client = PlexCommunityClient("token", logger=getLogger("test.community"))
     session = await client._get_session()
     assert created["headers"]["X-Plex-Token"] == "token"
     await client.close()
@@ -98,7 +99,7 @@ async def test_make_request_handles_rate_limit(monkeypatch: pytest.MonkeyPatch):
         StubResponse(status=200, payload={"data": {"ok": True}}),
     ]
     stub_session = StubSession(responses)
-    client = PlexCommunityClient("token")
+    client = PlexCommunityClient("token", logger=getLogger("test.community"))
     client._session = cast(aiohttp.ClientSession, stub_session)
 
     async def fast_sleep(*_args, **_kwargs):
@@ -114,7 +115,7 @@ async def test_make_request_handles_rate_limit(monkeypatch: pytest.MonkeyPatch):
 @pytest.mark.asyncio
 async def test_get_watch_activity_accumulates_pages(monkeypatch: pytest.MonkeyPatch):
     """Test that paginated watch activity is fully accumulated."""
-    client = PlexCommunityClient("token")
+    client = PlexCommunityClient("token", logger=getLogger("test.community"))
     pages = [
         {
             "data": {
@@ -148,7 +149,7 @@ async def test_get_watch_activity_accumulates_pages(monkeypatch: pytest.MonkeyPa
 @pytest.mark.asyncio
 async def test_get_reviews_returns_none_when_missing(monkeypatch: pytest.MonkeyPatch):
     """Test that get_reviews returns None when no review is found."""
-    client = PlexCommunityClient("token")
+    client = PlexCommunityClient("token", logger=getLogger("test.community"))
 
     async def fake_request(*_args, **_kwargs):
         return {"data": {"metadataReviewV2": {}}}

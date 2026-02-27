@@ -1,6 +1,7 @@
 """Tests for the Plex library provider integration."""
 
 from datetime import UTC, datetime
+from logging import getLogger
 from types import SimpleNamespace
 from typing import Any, ClassVar, cast
 
@@ -143,7 +144,10 @@ class FakePlexClient:
         self._user_id = 1
         self._display_name = "Demo"
         self._helper = client_module.PlexClient(
-            url="https://plex.example", token="token", user="demo"
+            logger=getLogger("test.library.client"),
+            url="https://plex.example",
+            token="token",
+            user="demo",
         )
         self.initialized = False
         self.closed = False
@@ -211,9 +215,10 @@ class StubCommunityClient:
 
     instances: ClassVar[list[StubCommunityClient]] = []
 
-    def __init__(self, token: str) -> None:
+    def __init__(self, token: str, *, logger=None) -> None:
         """Initialize the stub community client."""
         self.token = token
+        self.logger = logger
         self.calls: list[str] = []
         self.closed = False
         StubCommunityClient.instances.append(self)
@@ -252,7 +257,8 @@ def library_setup(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(library_module, "PlexClient", lambda **_: fake_client)
 
     provider = library_module.PlexLibraryProvider(
-        config={"url": "https://plex.example", "token": "token", "user": "demo"}
+        logger=getLogger("test.library.provider"),
+        config={"url": "https://plex.example", "token": "token", "user": "demo"},
     )
     return provider, fake_client, movie, show, episode
 

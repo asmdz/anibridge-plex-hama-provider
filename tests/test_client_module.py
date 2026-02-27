@@ -1,6 +1,7 @@
 """Focused tests for the Plex client helpers."""
 
 from datetime import UTC, datetime, timedelta
+from logging import getLogger
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -21,6 +22,7 @@ def _account_stub(**kwargs: Any) -> client_module.MyPlexAccount:
 def plex_client() -> client_module.PlexClient:
     """Provide a PlexClient instance for tests."""
     return client_module.PlexClient(
+        logger=getLogger("test.client"),
         url="https://plex.example",
         token="token",
         user="demo",
