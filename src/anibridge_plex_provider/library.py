@@ -22,7 +22,6 @@ from anibridge.library import (
     LibraryShow,
     LibraryUser,
     MediaKind,
-    library_provider,
 )
 from anibridge.library.base import MappingDescriptor
 
@@ -489,7 +488,6 @@ class PlexLibraryEpisode(PlexLibraryEntry, LibraryEpisode):
         return self.season().mapping_descriptors()
 
 
-@library_provider
 class PlexLibraryProvider(LibraryProvider):
     """Default Plex `LibraryProvider` backed by the local Plex Media Server."""
 

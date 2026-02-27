@@ -8,7 +8,7 @@ from time import monotonic
 from typing import Literal
 from urllib.parse import urlparse
 
-from anibridge.library import ProviderLogger
+from anibridge.utils.types import ProviderLogger
 from plexapi.library import LibrarySection, MovieSection, ShowSection
 from plexapi.myplex import MyPlexAccount, MyPlexUser
 from plexapi.server import PlexServer
@@ -113,7 +113,7 @@ class PlexClient:
                 return None
             try:
                 return timedelta(weeks=float(window_value))
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return None
 
         self._on_deck_window = await asyncio.to_thread(_on_deck_window_sync)

@@ -6,11 +6,11 @@ from logging import Logger
 from typing import Any
 
 import aiohttp
-from limiter import Limiter
+from anibridge.utils.limiter import Limiter
 
 __all__ = ["PlexCommunityClient"]
 
-plex_community_limiter = Limiter(rate=300 / 60, capacity=30, jitter=True)
+plex_community_limiter = Limiter(rate=300 / 60, capacity=30)
 
 
 class PlexCommunityClient:
