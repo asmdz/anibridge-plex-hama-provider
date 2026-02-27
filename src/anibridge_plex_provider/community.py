@@ -174,7 +174,7 @@ class PlexCommunityClient:
             return None
         return data["message"]
 
-    @plex_community_limiter()
+    @plex_community_limiter
     async def _make_request(
         self,
         query: str,
