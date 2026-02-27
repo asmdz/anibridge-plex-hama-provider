@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import pytest
 
-from anibridge_plex_provider.webhook import (
+from anibridge.providers.library.plex.webhook import (
     Account,
     Metadata,
     PlexWebhook,

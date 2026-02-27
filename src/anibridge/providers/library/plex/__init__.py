@@ -4,7 +4,7 @@ import importlib.metadata
 import os
 import uuid
 
-from anibridge_plex_provider.library import PlexLibraryProvider
+from anibridge.providers.library.plex.library import PlexLibraryProvider
 
 __all__ = ["PlexLibraryProvider"]
 

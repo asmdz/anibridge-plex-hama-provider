@@ -9,7 +9,7 @@ from typing import cast
 import aiohttp
 import pytest
 
-from anibridge_plex_provider.community import PlexCommunityClient
+from anibridge.providers.library.plex.community import PlexCommunityClient
 
 
 class StubResponse:
@@ -76,11 +76,11 @@ async def test_get_session_initializes_headers(monkeypatch: pytest.MonkeyPatch):
             self.closed = True
 
     monkeypatch.setattr(
-        "anibridge_plex_provider.community.importlib.metadata.version",
+        "anibridge.providers.library.plex.community.importlib.metadata.version",
         lambda _: "1.2.3",
     )
     monkeypatch.setattr(
-        "anibridge_plex_provider.community.aiohttp.ClientSession",
+        "anibridge.providers.library.plex.community.aiohttp.ClientSession",
         DummySession,
     )
 

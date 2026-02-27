@@ -14,7 +14,7 @@ from plexapi.myplex import MyPlexAccount, MyPlexUser
 from plexapi.server import PlexServer
 from plexapi.video import Movie, Show, Video
 
-from anibridge_plex_provider.utils import SelectiveVerifySession
+from anibridge.providers.library.plex.utils import SelectiveVerifySession
 
 __all__ = ["Ordering", "PlexClient"]
 

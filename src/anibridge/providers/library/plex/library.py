@@ -25,9 +25,9 @@ from anibridge.library import (
 )
 from anibridge.library.base import MappingDescriptor
 
-from anibridge_plex_provider.client import PlexClient
-from anibridge_plex_provider.community import PlexCommunityClient
-from anibridge_plex_provider.webhook import PlexWebhook, PlexWebhookEventType
+from anibridge.providers.library.plex.client import PlexClient
+from anibridge.providers.library.plex.community import PlexCommunityClient
+from anibridge.providers.library.plex.webhook import PlexWebhook, PlexWebhookEventType
 
 if TYPE_CHECKING:
     from starlette.requests import Request

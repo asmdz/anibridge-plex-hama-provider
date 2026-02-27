@@ -7,7 +7,7 @@ from typing import Any, cast
 
 import pytest
 
-import anibridge_plex_provider.client as client_module
+import anibridge.providers.library.plex.client as client_module
 
 
 def _server_stub(**kwargs: Any) -> client_module.PlexServer:
