@@ -76,16 +76,20 @@ wheels = [
 
 [[package]]
 name = "anibridge-library-base"
-version = "0.2.0b3"
-source = { git = "https://github.com/anibridge/anibridge-library-base.git#f64e1f63521acc9f04af2b9fe1bbecf901add40f" }
+version = "0.2.0b4"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anibridge-utils" },
     { name = "starlette" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/9f/92/9a0602e89f0f9f9906a9f8335c01a459b614e58c5dc3f243876634be88d7/anibridge_library_base-0.2.0b4.tar.gz", hash = "sha256:90810246e192c27c10947f2bc4dffceab073fdad75a10fd052928992019e5b9b", size = 5353, upload-time = "2026-02-27T05:51:43.664Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/00/b8/52eb624ca5edbeafeb943c32110e166b9ed7620c909cc230a7657719c3ba/anibridge_library_base-0.2.0b4-py3-none-any.whl", hash = "sha256:c86b12b99aea5f23a1aedd4729606b4da5f03facc9ef318cd5c902adfdb7cfb3", size = 6613, upload-time = "2026-02-27T05:51:42.601Z" },
+]
 
 [[package]]
 name = "anibridge-plex-provider"
-version = "0.2.0b5"
+version = "0.2.0b6"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -106,7 +110,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.2" },
-    { name = "anibridge-library-base", git = "https://github.com/anibridge/anibridge-library-base.git" },
+    { name = "anibridge-library-base", specifier = ">=0.2.0b4" },
     { name = "plexapi", specifier = ">=4.18.0" },
     { name = "pydantic", specifier = ">=2.12.4" },
 ]
@@ -123,10 +127,14 @@ dev = [
 [[package]]
 name = "anibridge-utils"
 version = "0.1.0"
-source = { git = "https://github.com/anibridge/anibridge-utils#c4ea6e7ef1fdf7384eed924c1736aeb6232a96e1" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cachetools" },
     { name = "diskcache" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cd/d4/4621cee2e77e5578e0a074c70e22fb028ea149b55485155a003d37c3988f/anibridge_utils-0.1.0.tar.gz", hash = "sha256:f4461a1a0387d5819be02c11509d40127989d1e0cad8fde08975b66f72949b6e", size = 7401, upload-time = "2026-02-27T04:49:34.012Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/27/79/89a36b55960d86aa4d511cd713c90359c9d68a683770884c26bc0a92d36a/anibridge_utils-0.1.0-py3-none-any.whl", hash = "sha256:acd37225365571e72471da384e100e009aa99ceb2b4076a5d0f6e08b83551bf9", size = 9061, upload-time = "2026-02-27T04:49:33.013Z" },
 ]
 
 [[package]]
