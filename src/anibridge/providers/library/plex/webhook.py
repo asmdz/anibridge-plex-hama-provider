@@ -2,12 +2,14 @@
 
 from enum import StrEnum
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from starlette.requests import Request
+
+type WebhookPayload = PlexWebhook | TautulliWebhook
 
 
 class PlexWebhookEventType(StrEnum):
@@ -45,7 +47,7 @@ class Server(BaseModel):
 class Player(BaseModel):
     """Represents a Plex player involved in a webhook event."""
 
-    local: bool
+    local: bool | None = None
     publicAddress: str | None = None
     title: str | None = None
     uuid: str | None = None
@@ -85,8 +87,8 @@ class PlexWebhook(BaseModel):
     """Represents a Plex webhook event."""
 
     event: str | None = None
-    user: bool
-    owner: bool
+    user: bool | None = None
+    owner: bool | None = None
     account: Account | None = Field(None, alias="Account")
     server: Server | None = Field(None, alias="Server")
     player: Player | None = Field(None, alias="Player")
@@ -95,7 +97,7 @@ class PlexWebhook(BaseModel):
     @cached_property
     def event_type(self) -> PlexWebhookEventType | None:
         """The webhook event type."""
-        if self.event is None:
+        if not self.event:
             return None
         try:
             return PlexWebhookEventType(self.event)
@@ -118,25 +120,137 @@ class PlexWebhook(BaseModel):
             or self.metadata.ratingKey
         )
 
+
+class TautulliWebhook(BaseModel):
+    """Represents a normalized Tautulli webhook payload."""
+
+    _TAUTULLI_ACTION_MAP: ClassVar[dict[str, PlexWebhookEventType]] = {
+        "play": PlexWebhookEventType.PLAY,
+        "pause": PlexWebhookEventType.PAUSE,
+        "stop": PlexWebhookEventType.STOP,
+        "resume": PlexWebhookEventType.RESUME,
+        "scrobble": PlexWebhookEventType.SCROBBLE,
+        "rate": PlexWebhookEventType.RATE,
+        "rated": PlexWebhookEventType.RATE,
+        "created": PlexWebhookEventType.MEDIA_ADDED,
+        "recently_added": PlexWebhookEventType.MEDIA_ADDED,
+        "on_deck": PlexWebhookEventType.ON_DECK,
+    }
+
+    action: str | None = None
+    user_id: int | str | None = None
+    rating_key: str | None = None
+    parent_rating_key: str | None = None
+    grandparent_rating_key: str | None = None
+
+    @cached_property
+    def event_type(self) -> PlexWebhookEventType | None:
+        """The webhook event type normalized to Plex event enum values."""
+        if not self.action:
+            return None
+        normalized = str(self.action).strip().lower()
+        return self._TAUTULLI_ACTION_MAP.get(normalized)
+
+    @cached_property
+    def account_id(self) -> int | None:
+        """The webhook owner's Plex account ID if present."""
+        if self.user_id is None:
+            return None
+        try:
+            return int(self.user_id)
+        except TypeError, ValueError:
+            return None
+
+    @cached_property
+    def top_level_rating_key(self) -> str | None:
+        """The top-level rating key for the media item."""
+        return self.grandparent_rating_key or self.parent_rating_key or self.rating_key
+
+
+class WebhookParser:
+    """Parser for incoming Plex (multipart) or Tautulli webhooks."""
+
+    @staticmethod
+    def media_type(content_type: str | None) -> str:
+        """Read the media type portion of a Content-Type header.
+
+        Args:
+            content_type (str): The full Content-Type header value, e.g.
+                "multipart/form-data; boundary=abc".
+
+        Returns:
+            str: The media type portion of the Content-Type header.
+        """
+        if not content_type:
+            return ""
+        return content_type.split(";", 1)[0].strip().lower()
+
     @classmethod
-    async def from_request(cls, request: Request) -> PlexWebhook:
-        """Create a PlexWebhook instance from an incoming HTTP request."""
-        content_type = request.headers.get("content-type", "")
-        if content_type.startswith("multipart/form-data"):
-            form = await request.form()
-            payload_raw = form.get("payload")
-            if not payload_raw:
-                raise ValueError("Missing 'payload' form field")
+    async def from_request(cls, request: Request) -> WebhookPayload:
+        """Create a webhook instance from an incoming HTTP request.
+
+        Args:
+            request (Request): The incoming HTTP request containing the webhook payload.
+
+        Returns:
+            WebhookPayload: An instance of PlexWebhook or TautulliWebhook parsed from
+                the request.
+
+        Raises:
+            ValueError: If the 'format' query parameter is missing or not one of
+                'plex' or 'tautulli'.
+        """
+        payload_format = (request.query_params.get("format") or "").strip().lower()
+        content_type = WebhookParser.media_type(request.headers.get("content-type"))
+
+        if payload_format == "plex":
+            if content_type in (
+                "multipart/form-data",
+                "application/x-www-form-urlencoded",
+            ):
+                form = await request.form()
+                payload_raw = form.get("payload")
+                if not payload_raw:
+                    raise ValueError(
+                        "Missing 'payload' field in multipart/form-data request"
+                    )
+
+                if isinstance(payload_raw, bytes):
+                    payload_raw = payload_raw.decode("utf-8", "replace")
+                try:
+                    return PlexWebhook.model_validate_json(str(payload_raw))
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid Plex payload JSON in 'payload' field: {e}"
+                    ) from e
+            elif content_type == "application/json":
+                try:
+                    data = await request.json()
+                    return PlexWebhook.model_validate(data)
+                except Exception as e:
+                    raise ValueError(f"Invalid Plex JSON payload: {e}") from e
+            else:
+                raise ValueError(
+                    f"Unsupported content type '{content_type}' for Plex webhook "
+                    "(expected multipart/form-data, application/x-www-form-urlencoded, "
+                    "or application/json)"
+                )
+
+        elif payload_format == "tautulli":
+            if content_type != "application/json":
+                raise ValueError(
+                    f"Unsupported content type '{content_type}' for Tautulli webhook "
+                    "(expected application/json)"
+                )
             try:
-                return PlexWebhook.model_validate_json(str(payload_raw))
+                data = await request.json()
             except Exception as e:
-                raise ValueError(f"Invalid payload JSON: {e}") from e
-        # Fallback to JSON body
-        try:
-            data = await request.json()
-        except Exception as e:
-            raise ValueError(f"Invalid JSON body: {e}") from e
-        try:
-            return PlexWebhook.model_validate(data)
-        except Exception as e:
-            raise ValueError(f"Invalid payload structure: {e}") from e
+                raise ValueError(f"Invalid JSON body: {e}") from e
+            if not isinstance(data, dict):
+                raise ValueError("Invalid payload structure: expected JSON object")
+            return TautulliWebhook.model_validate(data)
+
+        else:
+            raise ValueError(
+                f"Unsupported format '{payload_format}' specified in query parameters"
+            )
