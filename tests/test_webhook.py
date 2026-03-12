@@ -78,7 +78,7 @@ async def test_from_request_handles_multipart_form_payload():
 
 @pytest.mark.asyncio
 async def test_from_request_falls_back_to_json_body():
-    """Non-multipart bodies are parsed as JSON."""
+    """Non-multipart Plex bodies are parsed as JSON."""
     stub_request = _StubRequest(
         headers={"content-type": "application/json"},
         query_params={"format": "plex"},
@@ -91,21 +91,18 @@ async def test_from_request_falls_back_to_json_body():
 
 
 @pytest.mark.asyncio
-async def test_from_request_requires_explicit_tautulli_format_hint():
-    """Requests without a recognized format hint raise ValueError."""
+async def test_from_request_defaults_blank_format_to_plex():
+    """Blank format hints should preserve legacy Plex parsing behavior."""
     stub_request = _StubRequest(
         headers={"content-type": "application/json"},
-        json_payload={
-            "action": "created",
-            "user_id": "7",
-            "rating_key": "episode",
-            "parent_rating_key": "season",
-            "grandparent_rating_key": "show",
-        },
+        query_params={"format": ""},
+        json_payload={"event": "library.on.deck", "user": True, "owner": True},
     )
 
-    with pytest.raises(ValueError, match="Unsupported format"):
-        await WebhookParser.from_request(cast(Any, stub_request))
+    payload = await WebhookParser.from_request(cast(Any, stub_request))
+    assert isinstance(payload, PlexWebhook)
+    assert payload.event_type is PlexWebhookEventType.ON_DECK
+
 
 
 @pytest.mark.asyncio

@@ -200,7 +200,7 @@ class WebhookParser:
             ValueError: If the 'format' query parameter is missing or not one of
                 'plex' or 'tautulli'.
         """
-        payload_format = (request.query_params.get("format") or "").strip().lower()
+        payload_format = request.query_params.get("format", "plex").strip().lower() or "plex"
         content_type = WebhookParser.media_type(request.headers.get("content-type"))
 
         if payload_format == "plex":
