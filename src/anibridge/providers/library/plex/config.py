@@ -12,13 +12,14 @@ class PlexProviderConfig(BaseModel):
     )
     user: str = Field(default=..., description="The Plex user to synchronize.")
     sections: list[str] = Field(
-        default=[],
+        default_factory=list,
         description=(
             "A list of Plex library section names to constrain synchronization to."
         ),
     )
     genres: list[str] = Field(
-        default=[], description="A list of genres to constrain synchronization to."
+        default_factory=list,
+        description="A list of genres to constrain synchronization to.",
     )
     strict: bool = Field(
         default=True,
