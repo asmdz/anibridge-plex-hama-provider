@@ -27,6 +27,7 @@ from anibridge.library.base import MappingDescriptor
 
 from anibridge.providers.library.plex.client import PlexClient
 from anibridge.providers.library.plex.community import PlexCommunityClient
+from anibridge.providers.library.plex.config import PlexProviderConfig
 from anibridge.providers.library.plex.webhook import PlexWebhookEventType, WebhookParser
 
 if TYPE_CHECKING:
@@ -323,7 +324,7 @@ class PlexLibraryShow(PlexLibraryEntry, LibraryShow):
             cast(plexapi_video.Show, self._item)
         )
         # If strict matching is enabled, filter to only the preferred ordering
-        if self._provider._strict:
+        if self._provider.parsed_config.strict:
             if ordering == "tmdb":
                 descriptors = tuple(
                     d for d in descriptors if d[0] in ("tmdb_show", "tmdb_movie")
@@ -501,34 +502,15 @@ class PlexLibraryProvider(LibraryProvider):
             config (dict | None): Optional configuration options for the provider.
         """
         super().__init__(logger=logger, config=config)
-
-        url = self.config.get("url") or ""
-        token = self.config.get("token") or ""
-        user = self.config.get("user") or ""
-        if not url or not token or not user:
-            self.log.warning(
-                "Plex provider is missing one or more required credentials"
-            )
-            raise ValueError(
-                "The Plex provider requires 'url', 'token', and 'user' configuration "
-                "values"
-            )
-
-        self._plex_url = str(url)
-        self._plex_token = str(token)
-        self._plex_user = str(user)
-
-        self._strict = bool(self.config.get("strict", True))
-        self._section_filter = list(self.config.get("sections") or [])
-        self._genre_filter = list(self.config.get("genres") or [])
+        self.parsed_config = PlexProviderConfig.model_validate(config or {})
 
         self._client = PlexClient(
             logger=self.log,
-            url=self._plex_url,
-            token=self._plex_token,
-            user=self._plex_user,
-            section_filter=self._section_filter,
-            genre_filter=self._genre_filter,
+            url=self.parsed_config.url,
+            token=self.parsed_config.token,
+            user=self.parsed_config.user,
+            section_filter=self.parsed_config.sections,
+            genre_filter=self.parsed_config.genres,
         )
         self._community_client: PlexCommunityClient | None = None
 
@@ -550,7 +532,7 @@ class PlexLibraryProvider(LibraryProvider):
 
         self._sections = self._build_sections()
         self._community_client = PlexCommunityClient(
-            self._plex_token,
+            plex_token=self.parsed_config.token,
             logger=self.log.getChild("community_client"),
         )
 

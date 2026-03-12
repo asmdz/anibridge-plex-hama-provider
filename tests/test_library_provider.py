@@ -215,9 +215,9 @@ class StubCommunityClient:
 
     instances: ClassVar[list[StubCommunityClient]] = []
 
-    def __init__(self, token: str, *, logger=None) -> None:
+    def __init__(self, plex_token: str, *, logger=None) -> None:
         """Initialize the stub community client."""
-        self.token = token
+        self.token = plex_token
         self.logger = logger
         self.calls: list[str] = []
         self.closed = False
@@ -244,7 +244,7 @@ def library_setup(monkeypatch: pytest.MonkeyPatch):
     show._episodes = [episode]
 
     movie = StubMovie("movie-key")
-    items = [movie, show]
+    items = cast(list[StubBaseVideo], [movie, show])
     sections = [FakeRawSection("Movies", "movie")]
     fake_client = FakePlexClient(sections=sections, items=items)
 
