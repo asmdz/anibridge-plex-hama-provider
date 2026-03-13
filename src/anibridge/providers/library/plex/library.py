@@ -1,6 +1,5 @@
 """Plex library provider implementation."""
 
-import base64
 import itertools
 from collections.abc import Sequence
 from datetime import datetime
@@ -9,7 +8,6 @@ from typing import TYPE_CHECKING, cast
 
 import plexapi.library as plexapi_library
 import plexapi.video as plexapi_video
-import requests
 from anibridge.library import (
     HistoryEntry,
     LibraryEntry,
@@ -24,6 +22,8 @@ from anibridge.library import (
     MediaKind,
 )
 from anibridge.library.base import MappingDescriptor
+from anibridge.utils.datetime import normalize_local_datetime
+from anibridge.utils.image import fetch_image_as_data_url
 
 from anibridge.providers.library.plex.client import PlexClient
 from anibridge.providers.library.plex.community import PlexCommunityClient
@@ -123,13 +123,7 @@ class PlexLibraryMedia(LibraryMedia):
             )
 
             # Low timeout because this is low priority
-            response = requests.get(url, timeout=3)
-            response.raise_for_status()
-
-            content_type = response.headers.get("Content-Type", "image/jpeg")
-            encoded = base64.b64encode(response.content).decode("utf-8")
-
-            return f"data:{content_type};base64,{encoded}"
+            return fetch_image_as_data_url(url, timeout=3)
 
         except Exception:
             self._provider.log.exception("Failed to fetch Plex poster")
@@ -719,7 +713,7 @@ class PlexLibraryProvider(LibraryProvider):
             return tuple(
                 HistoryEntry(
                     library_key=rating_key,
-                    viewed_at=self._client._normalize_local_datetime(viewed_at),
+                    viewed_at=normalize_local_datetime(viewed_at),
                 )
                 for rating_key, viewed_at in plex_history
             )
@@ -737,7 +731,7 @@ class PlexLibraryProvider(LibraryProvider):
 
         for child in children:
             last_viewed = (
-                self._client._normalize_local_datetime(child.lastViewedAt)
+                normalize_local_datetime(child.lastViewedAt)
                 if child.lastViewedAt
                 else None
             )

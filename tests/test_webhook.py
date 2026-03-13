@@ -104,7 +104,6 @@ async def test_from_request_defaults_blank_format_to_plex():
     assert payload.event_type is PlexWebhookEventType.ON_DECK
 
 
-
 @pytest.mark.asyncio
 async def test_from_request_supports_explicit_tautulli_format_hint():
     """format=tautulli forces Tautulli payload parsing semantics."""

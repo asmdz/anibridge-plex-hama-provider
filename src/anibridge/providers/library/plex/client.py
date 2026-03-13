@@ -8,6 +8,7 @@ from time import monotonic
 from typing import Literal
 from urllib.parse import urlparse
 
+from anibridge.utils.datetime import normalize_local_datetime
 from anibridge.utils.types import ProviderLogger
 from plexapi.library import LibrarySection, MovieSection, ShowSection
 from plexapi.myplex import MyPlexAccount, MyPlexUser
@@ -409,9 +410,15 @@ class PlexClient:
             return []
 
         entries = [
-            (str(record.ratingKey), self._normalize_local_datetime(record.viewedAt))
+            (
+                str(record.ratingKey),
+                normalize_local_datetime(record.viewedAt),
+            )
             for record in history_objects
             if record.viewedAt is not None
+        ]
+        entries = [
+            (key, viewed_at) for key, viewed_at in entries if viewed_at is not None
         ]
         return entries
 
@@ -488,11 +495,3 @@ class PlexClient:
         if self._admin_client is None:
             raise RuntimeError("Plex client has not been initialized")
         return self._admin_client
-
-    @staticmethod
-    def _normalize_local_datetime(value: datetime) -> datetime:
-        """Return a timezone-aware datetime."""
-        local_tz = datetime.now().astimezone().tzinfo or UTC
-        if value.tzinfo is None:
-            return value.replace(tzinfo=local_tz)
-        return value.astimezone(local_tz)

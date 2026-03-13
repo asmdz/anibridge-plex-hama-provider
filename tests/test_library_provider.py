@@ -201,14 +201,6 @@ class FakePlexClient:
         """Return the watch history for the item."""
         return list(self._history)
 
-    @staticmethod
-    def _normalize_local_datetime(value: datetime) -> datetime:
-        """Return a timezone-aware datetime without shifting naive wall time."""
-        local_tz = datetime.now().astimezone().tzinfo or UTC
-        if value.tzinfo is None:
-            return value.replace(tzinfo=local_tz)
-        return value.astimezone(local_tz)
-
 
 class StubCommunityClient:
     """Stub for the PlexCommunityClient."""

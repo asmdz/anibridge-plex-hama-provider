@@ -22,10 +22,11 @@ classifiers = [
 ]
 
 dependencies = [
-    "aiohttp>=3.13.2",
-    "anibridge-library-base>=0.2.0b4",
+    "aiohttp>=3.13.3",
+    "anibridge-library-base>=0.2.0b6",
     "plexapi>=4.18.0",
-    "pydantic>=2.12.4",
+    "pydantic>=2.12.5",
+    "requests>=2.32.0",
 ]
 
 [tool.ruff]

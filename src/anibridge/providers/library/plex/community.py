@@ -2,11 +2,11 @@
 
 import asyncio
 import importlib.metadata
-from logging import Logger
 from typing import Any
 
 import aiohttp
 from anibridge.utils.limiter import Limiter
+from anibridge.utils.types import ProviderLogger
 
 __all__ = ["PlexCommunityClient"]
 
@@ -18,7 +18,7 @@ class PlexCommunityClient:
 
     API_URL = "https://community.plex.tv/api"
 
-    def __init__(self, plex_token: str, *, logger: Logger) -> None:
+    def __init__(self, plex_token: str, *, logger: ProviderLogger) -> None:
         """Initialize the PlexCommunityClient with a Plex token.
 
         Args:
