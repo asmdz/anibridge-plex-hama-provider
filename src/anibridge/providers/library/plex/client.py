@@ -4,8 +4,9 @@ import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from logging import Logger
 from time import monotonic
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import urlparse
 
 from anibridge.utils.datetime import normalize_local_datetime
@@ -26,7 +27,7 @@ type Ordering = Literal["tmdb", "tvdb", ""]
 class _FrozenCacheEntry:
     """Immutable cache entry for storing Plex item keys with expiration."""
 
-    keys: frozenset[str]
+    keys: frozenset
     expires_at: float
 
 
@@ -127,7 +128,7 @@ class PlexClient:
         parsed = urlparse(self._url)
         if parsed.scheme == "https":
             session = SelectiveVerifySession(
-                whitelist=[parsed.hostname], logger=self.log
+                whitelist=[parsed.hostname], logger=cast(Logger, self.log)
             )
 
         admin_client = PlexServer(
