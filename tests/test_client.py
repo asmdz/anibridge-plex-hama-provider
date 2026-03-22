@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from anibridge.utils.types import ProviderLogger
 
 import anibridge.providers.library.plex.client as client_module
 
@@ -22,7 +23,7 @@ def _account_stub(**kwargs: Any) -> client_module.MyPlexAccount:
 def plex_client() -> client_module.PlexClient:
     """Provide a PlexClient instance for tests."""
     return client_module.PlexClient(
-        logger=getLogger("test.client"),
+        logger=cast(ProviderLogger, getLogger("test.client")),
         url="https://plex.example",
         token="token",
         user="demo",

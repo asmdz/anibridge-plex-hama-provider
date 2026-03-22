@@ -7,6 +7,7 @@ from typing import Any, ClassVar, cast
 
 import pytest
 import pytest_asyncio
+from anibridge.utils.types import ProviderLogger
 from starlette.requests import Request
 
 import anibridge.providers.library.plex.client as client_module
@@ -35,6 +36,7 @@ class StubBaseVideo:
         self.guid = guid or "plex://movie/1"
         self.thumb = "/thumb"
         self.userRating = 7.5
+        self.lastRatedAt: datetime | None = None
         self.viewCount = 2
         self.librarySectionID = 1
         self.lastViewedAt = datetime.now(tz=UTC)
@@ -144,7 +146,7 @@ class FakePlexClient:
         self._user_id = 1
         self._display_name = "Demo"
         self._helper = client_module.PlexClient(
-            logger=getLogger("test.library.client"),
+            logger=cast(ProviderLogger, getLogger("test.library.client")),
             url="https://plex.example",
             token="token",
             user="demo",
@@ -200,6 +202,9 @@ class FakePlexClient:
     async def fetch_history(self, item):
         """Return the watch history for the item."""
         return list(self._history)
+
+    def get_ordering(self, _show) -> str:
+        return "airdate"
 
 
 class StubCommunityClient:
@@ -412,3 +417,211 @@ async def test_parse_webhook_uses_normalized_event_type(
     monkeypatch.setattr(library_module.WebhookParser, "from_request", fake_from_request)
     should_sync, keys = await provider.parse_webhook(cast(Request, SimpleNamespace()))
     assert should_sync is True and keys == ("key",)
+
+
+@pytest.mark.asyncio
+async def test_list_items_rejects_non_plex_section(
+    initialized_provider: tuple[
+        library_module.PlexLibraryProvider,
+        FakePlexClient,
+        StubMovie,
+        StubShow,
+        StubEpisode,
+    ],
+):
+    """list_items should reject section objects from other providers."""
+    provider, *_ = initialized_provider
+    with pytest.raises(TypeError):
+        await provider.list_items(cast(library_module.LibrarySection, object()))
+
+
+@pytest.mark.asyncio
+async def test_parse_webhook_ignores_mismatched_account(
+    monkeypatch: pytest.MonkeyPatch,
+    initialized_provider: tuple[
+        library_module.PlexLibraryProvider,
+        FakePlexClient,
+        StubMovie,
+        StubShow,
+        StubEpisode,
+    ],
+):
+    """Webhook events for other users should not trigger sync."""
+    provider, *_ = initialized_provider
+
+    class StubWebhook:
+        account_id = 999
+        top_level_rating_key = "other"
+        event = "media.scrobble"
+        event_type = library_module.PlexWebhookEventType.SCROBBLE
+
+    async def fake_from_request(_request):
+        return StubWebhook()
+
+    monkeypatch.setattr(library_module.WebhookParser, "from_request", fake_from_request)
+    should_sync, keys = await provider.parse_webhook(cast(Request, SimpleNamespace()))
+    assert should_sync is False
+    assert keys == tuple()
+
+
+@pytest.mark.asyncio
+async def test_get_review_handles_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    initialized_provider: tuple[
+        library_module.PlexLibraryProvider,
+        FakePlexClient,
+        StubMovie,
+        StubShow,
+        StubEpisode,
+    ],
+):
+    """Review retrieval failures should return None rather than raising."""
+    provider, _, movie, *_ = initialized_provider
+    movie.userRating = 8
+    movie.lastRatedAt = datetime.now(tz=UTC)
+    movie.guid = "plex://movie/123"
+
+    class FailingCommunityClient:
+        async def close(self) -> None:
+            return None
+
+        async def get_reviews(self, _metadata_id: str):
+            raise RuntimeError("boom")
+
+    provider._community_client = cast(Any, FailingCommunityClient())
+    provider._is_admin_user = True
+    assert (
+        await provider.get_review(cast(library_module.plexapi_video.Video, movie))
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_media_helpers_cover_external_and_poster_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    initialized_provider: tuple[
+        library_module.PlexLibraryProvider,
+        FakePlexClient,
+        StubMovie,
+        StubShow,
+        StubEpisode,
+    ],
+):
+    """Media helpers should handle missing/valid guid and poster fetch errors."""
+    provider, _, movie, *_ = initialized_provider
+    section = (await provider.get_sections())[0]
+
+    media = library_module.PlexLibraryMedia(
+        provider,
+        cast(library_module.PlexLibrarySection, section),
+        cast(library_module.plexapi_video.Video, movie),
+        library_module.MediaKind.MOVIE,
+    )
+    assert media.external_url is not None
+
+    movie.guid = None
+    assert media.external_url is None
+
+    movie.thumb = None
+    assert media.poster_image is None
+
+    movie.thumb = "/thumb"
+    monkeypatch.setattr(
+        library_module,
+        "fetch_image_as_data_url",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("fail")),
+    )
+    assert media.poster_image is None
+
+
+@pytest.mark.asyncio
+async def test_mapping_descriptors_and_rating_helpers(
+    initialized_provider: tuple[
+        library_module.PlexLibraryProvider,
+        FakePlexClient,
+        StubMovie,
+        StubShow,
+        StubEpisode,
+    ],
+):
+    """Entry helper properties should handle malformed GUIDs and bad ratings."""
+    provider, _, movie, *_ = initialized_provider
+    section = (await provider.get_sections())[0]
+
+    movie.guid = "broken-guid"
+    movie.guids = [SimpleNamespace(id=""), SimpleNamespace(id="imdb://tt777?lang=en")]
+    movie.userRating = "bad"
+    movie.viewCount = None
+
+    entry = library_module.PlexLibraryMovie(
+        provider,
+        cast(library_module.PlexLibrarySection, section),
+        cast(library_module.plexapi_video.Movie, movie),
+    )
+    descriptors = entry.mapping_descriptors()
+    assert descriptors == [("imdb_movie", "tt777", None)]
+    assert entry.user_rating is None
+    assert entry.view_count == 0
+
+
+@pytest.mark.asyncio
+async def test_show_season_episode_mapping_variants(
+    initialized_provider: tuple[
+        library_module.PlexLibraryProvider,
+        FakePlexClient,
+        StubMovie,
+        StubShow,
+        StubEpisode,
+    ],
+):
+    """Show/season/episode wrappers should preserve scoped mapping descriptors."""
+    provider, fake_client, _, show, episode = initialized_provider
+    section = (await provider.get_sections())[0]
+
+    # Include both tmdb and tvdb descriptors so strict/sort branches are exercised.
+    show.guid = "plex://show/88"
+    show.guids = [
+        SimpleNamespace(id="tmdb://99"),
+        SimpleNamespace(id="com.plexapp.agents.thetvdb://42"),
+    ]
+
+    fake_client.get_ordering = cast(Any, lambda _show: "tvdb")
+
+    wrapped_show = library_module.PlexLibraryShow(
+        provider,
+        cast(library_module.PlexLibrarySection, section),
+        cast(library_module.plexapi_video.Show, show),
+    )
+    provider.parsed_config.strict = True
+    strict_descriptors = wrapped_show.mapping_descriptors()
+    assert all(d[0] in ("tvdb_show", "tvdb_movie") for d in strict_descriptors)
+
+    provider.parsed_config.strict = False
+    sorted_descriptors = wrapped_show.mapping_descriptors()
+    assert sorted_descriptors[0][0] in ("tvdb_show", "tvdb_movie")
+
+    seasons = wrapped_show.seasons()
+    assert seasons
+    season_descriptors = seasons[0].mapping_descriptors()
+    assert all(d[2] == "s1" for d in season_descriptors)
+
+    wrapped_episode = library_module.PlexLibraryEpisode(
+        provider,
+        cast(library_module.PlexLibrarySection, section),
+        cast(library_module.plexapi_video.Episode, episode),
+    )
+    assert wrapped_episode.mapping_descriptors() == season_descriptors
+
+
+def test_wrap_entry_unsupported_type_raises(library_setup):
+    """_wrap_entry should reject unsupported media objects."""
+    provider, *_ = library_setup
+    section = library_module.PlexLibrarySection(
+        provider,
+        cast(Any, FakeRawSection("Movies", "movie")),
+    )
+
+    with pytest.raises(TypeError):
+        provider._wrap_entry(
+            section, cast(library_module.plexapi_video.Video, object())
+        )
