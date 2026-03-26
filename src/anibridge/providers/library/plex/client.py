@@ -145,19 +145,26 @@ class PlexClient:
             self.log.debug(
                 f"Attempting to switch to Plex Home user '{self._home_user}'"
             )
-            account = cast(
-                MyPlexAccount,
-                account.switchHomeUser(self._home_user),
-            )
-            if account.restricted:  # Supposedly means this is a managed home user
-                self.log.debug(
-                    f"Switched to managed Plex Home user '{account.username}' "
-                    f"({account.id})"
+            if self._home_user in (account.username, account.email):
+                self.log.warning(
+                    f"Provided Plex Home user '{self._home_user}' matches the "
+                    f"token owner's username/email; skipping switch "
                 )
             else:
-                self.log.debug(
-                    f"Switched to Plex Home user '{account.username}' ({account.id})"
+                account = cast(
+                    MyPlexAccount,
+                    account.switchHomeUser(self._home_user),
                 )
+                if account.restricted:  # Supposedly means this is a managed home user
+                    self.log.debug(
+                        f"Switched to managed Plex Home user '{account.username}' "
+                        f"({account.id})"
+                    )
+                else:
+                    self.log.debug(
+                        f"Switched to Plex Home user '{account.username}' "
+                        f"({account.id})"
+                    )
 
         user_token = account.resource(machine_id).accessToken
         user_client = PlexServer(self._url, token=user_token, session=session)
