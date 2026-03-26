@@ -3,7 +3,6 @@
 import itertools
 from collections.abc import Sequence
 from datetime import datetime
-from logging import Logger
 from typing import TYPE_CHECKING, cast
 
 import plexapi.library as plexapi_library
@@ -24,6 +23,7 @@ from anibridge.library import (
 from anibridge.library.base import MappingDescriptor
 from anibridge.utils.datetime import normalize_local_datetime
 from anibridge.utils.image import fetch_image_as_data_url
+from anibridge.utils.types import ProviderLogger
 
 from anibridge.providers.library.plex.client import PlexClient
 from anibridge.providers.library.plex.community import PlexCommunityClient
@@ -488,11 +488,11 @@ class PlexLibraryProvider(LibraryProvider):
 
     NAMESPACE = "plex"
 
-    def __init__(self, *, logger: Logger, config: dict | None = None) -> None:
+    def __init__(self, *, logger: ProviderLogger, config: dict | None = None) -> None:
         """Parse configuration and prepare provider defaults.
 
         Args:
-            logger (Logger): Injected AniBridge logger.
+            logger (ProviderLogger): Injected AniBridge logger.
             config (dict | None): Optional configuration options for the provider.
         """
         super().__init__(logger=logger, config=config)
@@ -502,13 +502,12 @@ class PlexLibraryProvider(LibraryProvider):
             logger=self.log,
             url=self.parsed_config.url,
             token=self.parsed_config.token,
-            user=self.parsed_config.user,
+            home_user=self.parsed_config.home_user,
             section_filter=self.parsed_config.sections,
             genre_filter=self.parsed_config.genres,
         )
         self._community_client: PlexCommunityClient | None = None
 
-        self._is_admin_user = False
         self._user: LibraryUser | None = None
 
         self._sections: list[PlexLibrarySection] = []
@@ -518,17 +517,19 @@ class PlexLibraryProvider(LibraryProvider):
         """Connect to Plex and prepare provider state."""
         self.log.debug("Initializing Plex provider client")
         await self._client.initialize()
-        self._is_admin_user = self._client.is_admin
         self._user = LibraryUser(
             key=str(self._client.user_id),
             title=self._client.display_name,
         )
 
         self._sections = self._build_sections()
-        self._community_client = PlexCommunityClient(
-            plex_token=self.parsed_config.token,
-            logger=self.log.getChild("community_client"),
-        )
+
+        # Managed users don't have access to the Plex Community API
+        if not self._client.is_managed_user:
+            self._community_client = PlexCommunityClient(
+                plex_token=self._client.account.authToken,
+                logger=self.log.getChild("community_client"),
+            )
 
         await self.clear_cache()
         self.log.debug(
@@ -677,7 +678,7 @@ class PlexLibraryProvider(LibraryProvider):
         Returns:
             str | None: The user's review text, or None if not reviewed.
         """
-        if not self._community_client or not self._is_admin_user:
+        if not self._community_client:
             return None
         if item.userRating is None and item.lastRatedAt is None:  # Prereq for reviews
             return None
@@ -713,7 +714,7 @@ class PlexLibraryProvider(LibraryProvider):
             return tuple(
                 HistoryEntry(
                     library_key=rating_key,
-                    viewed_at=normalize_local_datetime(viewed_at),
+                    viewed_at=cast(datetime, normalize_local_datetime(viewed_at)),
                 )
                 for rating_key, viewed_at in plex_history
             )
