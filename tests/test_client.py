@@ -243,6 +243,42 @@ def test_is_on_continue_watching_caches_results(plex_client: client_module.PlexC
     assert section.invocations == 1
 
 
+def test_is_on_continue_watching_matches_show_and_season_keys(
+    plex_client: client_module.PlexClient,
+):
+    """Continue Watching entries for episodes should also match season/show items."""
+
+    class DummySection:
+        key = "sec"
+
+        def continueWatching(self):
+            return [
+                SimpleNamespace(
+                    ratingKey="episode-key",
+                    parentRatingKey="season-key",
+                    grandparentRatingKey="show-key",
+                )
+            ]
+
+    plex_client._user_client = object()  # type: ignore
+    section = cast(client_module.LibrarySection, DummySection())
+    show = cast(
+        client_module.Video, SimpleNamespace(ratingKey="show-key", updatedAt=None)
+    )
+    season = cast(
+        client_module.Video,
+        SimpleNamespace(ratingKey="season-key", updatedAt=None),
+    )
+    episode = cast(
+        client_module.Video,
+        SimpleNamespace(ratingKey="episode-key", updatedAt=None),
+    )
+
+    assert plex_client.is_on_continue_watching(section, show)
+    assert plex_client.is_on_continue_watching(section, season)
+    assert plex_client.is_on_continue_watching(section, episode)
+
+
 @pytest.mark.asyncio
 async def test_fetch_history_respects_bundle(
     monkeypatch: pytest.MonkeyPatch, plex_client: client_module.PlexClient

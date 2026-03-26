@@ -372,8 +372,13 @@ class PlexClient:
         if should_refresh:
             rating_keys: set[str] = set()
             for continue_item in section.continueWatching():
-                if continue_item.ratingKey is not None:
-                    rating_keys.add(str(continue_item.ratingKey))
+                for key in (
+                    getattr(continue_item, "ratingKey", None),
+                    getattr(continue_item, "parentRatingKey", None),
+                    getattr(continue_item, "grandparentRatingKey", None),
+                ):
+                    if key is not None:
+                        rating_keys.add(str(key))
 
             cache_entry = _FrozenCacheEntry(
                 keys=frozenset(rating_keys),
