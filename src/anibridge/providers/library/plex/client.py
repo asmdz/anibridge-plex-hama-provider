@@ -1,12 +1,12 @@
 """Plex client abstractions consumed by the Plex library provider."""
 
 import asyncio
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from logging import Logger
-from time import monotonic
-from typing import Literal, cast
+from typing import ClassVar, Literal, cast
 from urllib.parse import urlparse
 from xml.etree import ElementTree
 
@@ -30,11 +30,13 @@ class _FrozenCacheEntry:
     """Immutable cache entry for storing Plex item keys with expiration."""
 
     keys: frozenset
-    expires_at: float
+    cached_at: datetime
 
 
 class PlexClient:
     """High-level Plex client wrapper used by the library provider."""
+
+    _WATCHLIST_CACHE_TTL: ClassVar[timedelta] = timedelta(minutes=5)
 
     def __init__(
         self,
@@ -352,21 +354,34 @@ class PlexClient:
         self._ensure_user_client()
 
         cache_entry = self._continue_cache.get(str(section.key))
-        now = monotonic()
-        if cache_entry is None or cache_entry.expires_at <= now:
+        # Invalidate cache if the item's last updated time is after cache creation
+        should_refresh = cache_entry is None
+        if cache_entry is not None and item.updatedAt is not None:
+            timestamps = [
+                t
+                for t in (item.addedAt, item.updatedAt, item.lastViewedAt)
+                if t is not None
+            ]
+            item_updated_at = (
+                normalize_local_datetime(max(timestamps)) if timestamps else None
+            )
+
+            if item_updated_at is not None and item_updated_at > cache_entry.cached_at:
+                should_refresh = True
+
+        if should_refresh:
             rating_keys: set[str] = set()
-            try:
-                for continue_item in section.continueWatching():
-                    if continue_item.ratingKey is not None:
-                        rating_keys.add(str(continue_item.ratingKey))
-            except Exception:
-                rating_keys.clear()
+            for continue_item in section.continueWatching():
+                if continue_item.ratingKey is not None:
+                    rating_keys.add(str(continue_item.ratingKey))
 
             cache_entry = _FrozenCacheEntry(
                 keys=frozenset(rating_keys),
-                expires_at=monotonic() + 300,
+                cached_at=datetime.now(tz=UTC),
             )
             self._continue_cache[str(section.key)] = cache_entry
+
+        assert cache_entry is not None
         return str(item.ratingKey) in cache_entry.keys
 
     async def fetch_history(self, item: Video) -> Sequence[tuple[str, datetime]]:
@@ -397,26 +412,55 @@ class PlexClient:
 
     def is_on_watchlist(self, item: Video) -> bool:
         """Determine whether the given item appears in the user's watchlist."""
-        now = monotonic()
+        now = datetime.now(tz=UTC)
         cache_entry = self._watchlist_cache
-        if cache_entry is None or cache_entry.expires_at <= now:
+        if (
+            cache_entry is None
+            or cache_entry.cached_at + self._WATCHLIST_CACHE_TTL <= now
+        ):
             try:
                 # Rating keys won't work here because watchlist items can exist outside
-                # of the user's server. We'll use GUIDs as as substitute.
+                # of the user's server. We'll use GUIDs as a substitute.
                 keys = {
                     str(watch_item.guid)
                     for watch_item in self.account.watchlist()
                     if watch_item.guid is not None
                 }
             except Exception:
-                keys = set()
+                display_label = self._display_name or "unknown user"
+                user_id_label = (
+                    str(self._user_id) if self._user_id is not None else "unknown id"
+                )
+                self.log.error(
+                    "Failed to fetch Plex watchlist for '%s' (%s)",
+                    display_label,
+                    user_id_label,
+                )
+                # No successful fetch yet, fail so we don't sync with no watchlist.
+                if cache_entry is None:
+                    time.sleep(1)  # Don't hammer Plex if they're having issues
+                    raise
 
-            cache_entry = _FrozenCacheEntry(
-                keys=frozenset(keys),
-                expires_at=monotonic() + 300,
-            )
-            self._watchlist_cache = cache_entry
+                # Stale cache available, keep using it until the next refresh.
+                self.log.debug(
+                    "Using stale Plex watchlist for '%s' (%s) (last updated at %s)",
+                    display_label,
+                    user_id_label,
+                    cache_entry.cached_at.isoformat(),
+                )
+                cache_entry = _FrozenCacheEntry(
+                    keys=cache_entry.keys,
+                    cached_at=now,
+                )
+                self._watchlist_cache = cache_entry
+            else:
+                cache_entry = _FrozenCacheEntry(
+                    keys=frozenset(keys),
+                    cached_at=now,
+                )
+                self._watchlist_cache = cache_entry
 
+        assert cache_entry is not None
         return item.guid is not None and item.guid in cache_entry.keys
 
     def get_ordering(self, show: Show) -> Ordering:
