@@ -1,6 +1,8 @@
 """Plex client abstractions consumed by the Plex library provider."""
 
 import asyncio
+import contextlib
+import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -11,7 +13,9 @@ from urllib.parse import urlparse
 from xml.etree import ElementTree
 
 import requests
+from anibridge.utils.cache import lru_cache
 from anibridge.utils.datetime import normalize_local_datetime
+from anibridge.utils.image import fetch_image_as_data_url
 from anibridge.utils.types import ProviderLogger
 from plexapi.library import LibrarySection, MovieSection, ShowSection
 from plexapi.myplex import MyPlexAccount
@@ -501,6 +505,37 @@ class PlexClient:
 
         self._ordering_cache[show.librarySectionID] = resolved
         return resolved
+
+    @lru_cache(maxsize=256)
+    def get_thumb_url(self, item: Video) -> str | None:
+        """Return a fully qualified URL to the thumbnail image for the given item."""
+        # First, attempt to fetch the thumbnail from Plex's online metadata source
+        if self._account is not None and item.guid:
+            with contextlib.suppress(Exception):
+                metadata_key = (
+                    f"{self._account.DISCOVER}/library/metadata"
+                    f"/{item.guid.rsplit('/')[-1]}"
+                )
+                metadata_item = cast(Video, self._account.fetchItem(metadata_key))
+                if metadata_item and metadata_item.thumb:
+                    return PlexClient._normalize_thumb(metadata_item.thumb)
+
+        # As a fallback, proxy the thumbnail as a data URL
+        if self._user_client is not None and item.thumb:
+            with contextlib.suppress(Exception):
+                transcode_url = self._user_client.transcodeImage(
+                    item.thumb, height=138, width=92
+                )
+                data_url = fetch_image_as_data_url(transcode_url, timeout=3)
+                if data_url:
+                    return data_url
+
+    @staticmethod
+    def _normalize_thumb(url: str, size: str = "w92") -> str:
+        """Normalize Plex thumbnail URLs to use the specified size, if using TMDB."""
+        if url.startswith("https://image.tmdb.org/"):
+            return re.sub(r"/w\d+|/original", f"/{size}", url)
+        return url
 
     def _ensure_user_client(self) -> PlexServer:
         """Ensure the user Plex client is available."""

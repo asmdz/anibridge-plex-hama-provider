@@ -1,5 +1,6 @@
 """Plex library provider implementation."""
 
+import contextlib
 import itertools
 from collections.abc import Sequence
 from datetime import datetime
@@ -22,7 +23,6 @@ from anibridge.library import (
 )
 from anibridge.library.base import MappingDescriptor
 from anibridge.utils.datetime import normalize_local_datetime
-from anibridge.utils.image import fetch_image_as_data_url
 from anibridge.utils.types import ProviderLogger
 
 from anibridge.providers.library.plex.client import PlexClient
@@ -113,21 +113,8 @@ class PlexLibraryMedia(LibraryMedia):
         We need to encode the image as a data URL because Plex requires authentication,
         so direct linking would expose the token in client image URLs.
         """
-        if not self._item.thumb:
-            return None
-
-        try:
-            url = self._provider._client.user_client.url(
-                self._item.thumb,
-                includeToken=True,
-            )
-
-            # Low timeout because this is low priority
-            return fetch_image_as_data_url(url, timeout=3)
-
-        except Exception:
-            self._provider.log.exception("Failed to fetch Plex poster")
-            return None
+        with contextlib.suppress(Exception):
+            return self._provider._client.get_thumb_url(self._item)
 
 
 class PlexLibraryEntry(LibraryEntry):

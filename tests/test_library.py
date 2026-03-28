@@ -511,7 +511,7 @@ async def test_media_helpers_cover_external_and_poster_paths(
     ],
 ):
     """Media helpers should handle missing/valid guid and poster fetch errors."""
-    provider, _, movie, *_ = initialized_provider
+    provider, fake_client, movie, *_ = initialized_provider
     section = (await provider.get_sections())[0]
 
     media = library_module.PlexLibraryMedia(
@@ -525,14 +525,12 @@ async def test_media_helpers_cover_external_and_poster_paths(
     movie.guid = None
     assert media.external_url is None
 
-    movie.thumb = None
-    assert media.poster_image is None
+    fake_client.get_thumb_url = cast(Any, lambda _item: "data:image/jpeg;base64,ok")
+    assert media.poster_image == "data:image/jpeg;base64,ok"
 
-    movie.thumb = "/thumb"
-    monkeypatch.setattr(
-        library_module,
-        "fetch_image_as_data_url",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("fail")),
+    fake_client.get_thumb_url = cast(
+        Any,
+        lambda _item: (_ for _ in ()).throw(RuntimeError("fail")),
     )
     assert media.poster_image is None
 

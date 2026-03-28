@@ -386,3 +386,100 @@ def test_get_ordering_and_filters(plex_client: client_module.PlexClient):
     plex_client._ordering_cache = {1: "tmdb"}
     plex_client.clear_cache()
     assert not plex_client._continue_cache and not plex_client._ordering_cache
+
+
+def test_normalize_thumb_rewrites_tmdb_sizes():
+    """TMDB poster URLs should be normalized to the requested size."""
+    original = "https://image.tmdb.org/t/p/original/abc.jpg"
+    resized = "https://image.tmdb.org/t/p/w500/abc.jpg"
+    non_tmdb = "https://cdn.example.com/poster.jpg"
+
+    assert client_module.PlexClient._normalize_thumb(original) == (
+        "https://image.tmdb.org/t/p/w92/abc.jpg"
+    )
+    assert client_module.PlexClient._normalize_thumb(resized, size="w185") == (
+        "https://image.tmdb.org/t/p/w185/abc.jpg"
+    )
+    assert client_module.PlexClient._normalize_thumb(non_tmdb) == non_tmdb
+
+
+def test_get_thumb_url_uses_online_metadata_and_normalizes(
+    plex_client: client_module.PlexClient,
+):
+    """Online Plex metadata should be preferred when available."""
+    calls: list[str] = []
+
+    def fetch_item(key: str):
+        calls.append(key)
+        return SimpleNamespace(thumb="https://image.tmdb.org/t/p/w500/poster.jpg")
+
+    plex_client._account = _account_stub(
+        DISCOVER="https://discover.provider.plex.tv",
+        fetchItem=fetch_item,
+    )
+    item = cast(
+        client_module.Video,
+        SimpleNamespace(guid="plex://show/12345", thumb="/thumb/path"),
+    )
+
+    result = plex_client.get_thumb_url(item)
+
+    assert calls == ["https://discover.provider.plex.tv/library/metadata/12345"]
+    assert result == "https://image.tmdb.org/t/p/w92/poster.jpg"
+
+
+def test_get_thumb_url_falls_back_to_transcoded_data_url(
+    monkeypatch: pytest.MonkeyPatch,
+    plex_client: client_module.PlexClient,
+):
+    """When online metadata is unavailable, local transcoded artwork is used."""
+    transcode_calls: list[tuple[str, int, int]] = []
+
+    def transcode_image(path: str, *, height: int, width: int) -> str:
+        transcode_calls.append((path, height, width))
+        return "https://plex.example/transcode?img=1"
+
+    fetch_calls: list[tuple[str, int]] = []
+
+    def fake_fetch_image_as_data_url(url: str, timeout: int = 3) -> str:
+        fetch_calls.append((url, timeout))
+        return "data:image/jpeg;base64,abc123"
+
+    monkeypatch.setattr(
+        client_module,
+        "fetch_image_as_data_url",
+        fake_fetch_image_as_data_url,
+    )
+
+    plex_client._account = _account_stub(
+        DISCOVER="https://discover.provider.plex.tv",
+        fetchItem=lambda _key: SimpleNamespace(thumb=None),
+    )
+    plex_client._user_client = _server_stub(transcodeImage=transcode_image)
+    item = cast(client_module.Video, SimpleNamespace(guid="plex://movie/9", thumb="/t"))
+
+    result = plex_client.get_thumb_url(item)
+
+    assert result == "data:image/jpeg;base64,abc123"
+    assert transcode_calls == [("/t", 138, 92)]
+    assert fetch_calls == [("https://plex.example/transcode?img=1", 3)]
+
+
+def test_get_thumb_url_is_stable_across_repeated_calls(
+    plex_client: client_module.PlexClient,
+):
+    """Repeated requests for the same item should return the same value."""
+
+    def fetch_item(_key: str):
+        return SimpleNamespace(thumb="https://image.tmdb.org/t/p/original/poster.jpg")
+
+    plex_client._account = _account_stub(
+        DISCOVER="https://discover.provider.plex.tv",
+        fetchItem=fetch_item,
+    )
+    item = cast(client_module.Video, SimpleNamespace(guid="plex://movie/7", thumb="/t"))
+
+    first = plex_client.get_thumb_url(item)
+    second = plex_client.get_thumb_url(item)
+
+    assert first == second == "https://image.tmdb.org/t/p/w92/poster.jpg"
