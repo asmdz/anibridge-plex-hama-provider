@@ -669,11 +669,9 @@ class PlexLibraryProvider(LibraryProvider):
         Returns:
             str | None: The user's review text, or None if not reviewed.
         """
-        if not self._community_client:
-            return None
         if item.userRating is None and item.lastRatedAt is None:  # Prereq for reviews
             return None
-        if not item.guid:
+        if self._community_client is None or not item.guid:
             return None
         metadata_id = item.guid.rsplit("/", 1)[-1]
         try:

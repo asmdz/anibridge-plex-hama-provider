@@ -375,15 +375,12 @@ class PlexClient:
     async def fetch_history(self, item: Video) -> Sequence[tuple[str, datetime]]:
         """Return the watch history for the given Plex item."""
         user_client = self._ensure_user_client()
-        try:
-            history_objects = await asyncio.to_thread(
-                user_client.history,
-                ratingKey=item.ratingKey,
-                accountID=self.user_id,
-                librarySectionID=item.librarySectionID,
-            )
-        except Exception:
-            return []
+        history_objects = await asyncio.to_thread(
+            user_client.history,
+            ratingKey=item.ratingKey,
+            accountID=self.user_id,
+            librarySectionID=item.librarySectionID,
+        )
 
         entries = [
             (
