@@ -176,9 +176,9 @@ class PlexClient:
             raise ValueError("Unable to resolve Plex account id for the active user")
 
         display_name = (
-            account.title
-            or account.username
+            account.username
             or account.email
+            or account.title
             or self._home_user
             or "unknown user"
         )
