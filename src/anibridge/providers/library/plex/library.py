@@ -22,6 +22,7 @@ from anibridge.library import (
     MediaKind,
 )
 from anibridge.library.base import MappingDescriptor
+from anibridge.utils.cache import cache, ttl_cache
 from anibridge.utils.datetime import normalize_local_datetime
 from anibridge.utils.types import ProviderLogger
 
@@ -274,17 +275,37 @@ class PlexLibraryShow(PlexLibraryEntry, LibraryShow):
         super().__init__(provider, section, item, MediaKind.SHOW)
         self._item = cast(plexapi_video.Show, self._item)
 
+    @ttl_cache(ttl=30)
     def episodes(self) -> Sequence[PlexLibraryEpisode]:
         """Return all episodes belonging to the show.
 
         Returns:
             Sequence[PlexLibraryEpisode]: All episodes in the show.
         """
-        return [
-            cast(PlexLibraryEpisode, self._provider._wrap_entry(self._section, episode))
-            for episode in self._item.episodes()
-        ]
+        seasons = self.seasons()
+        if seasons and all(
+            season.episodes.cache_info().currsize > 0 for season in seasons
+        ):
+            return tuple(
+                episode
+                for season in seasons
+                for episode in cast(Sequence[PlexLibraryEpisode], season.episodes())
+            )
 
+        episodes: list[PlexLibraryEpisode] = []
+        seasons_by_key = {season.key: season for season in seasons}
+        for episode in self._item.episodes():
+            wrapped_episode = PlexLibraryEpisode(
+                self._provider,
+                self._section,
+                episode,
+                season=seasons_by_key.get(str(getattr(episode, "parentRatingKey", ""))),
+                show=self,
+            )
+            episodes.append(wrapped_episode)
+        return tuple(episodes)
+
+    @ttl_cache(ttl=30)
     def seasons(self) -> Sequence[PlexLibrarySeason]:
         """Return all seasons belonging to the show.
 
@@ -355,6 +376,7 @@ class PlexLibrarySeason(PlexLibraryEntry, LibrarySeason):
         self._show = show
         self.index = self._item.index
 
+    @ttl_cache(ttl=30)
     def episodes(self) -> Sequence[LibraryEpisode]:
         """Return the episodes belonging to this season.
 
@@ -368,6 +390,7 @@ class PlexLibrarySeason(PlexLibraryEntry, LibrarySeason):
             for episode in self._item.episodes()
         )
 
+    @cache
     def show(self) -> LibraryShow:
         """Return the parent show.
 
@@ -422,6 +445,7 @@ class PlexLibraryEpisode(PlexLibraryEntry, LibraryEpisode):
         self.index = self._item.index
         self.season_index = self._item.parentIndex
 
+    @cache
     def season(self) -> LibrarySeason:
         """Return the parent season.
 
@@ -445,6 +469,7 @@ class PlexLibraryEpisode(PlexLibraryEntry, LibraryEpisode):
         )
         return self._season
 
+    @cache
     def show(self) -> LibraryShow:
         """Return the parent show.
 
@@ -619,13 +644,13 @@ class PlexLibraryProvider(LibraryProvider):
             and self._user
             and self._user.key == str(payload.account_id)
         ):
-            self.log.debug(
+            self.log.info(
                 f"Webhook: Matched webhook event {payload.event_type} to provider user "
                 f"ID {self._user.key} for sync"
             )
             return (True, (payload.top_level_rating_key,))
 
-        self.log.debug(
+        self.log.info(
             f"Webhook: Ignoring event {payload.event_type} for account ID "
             f"{payload.account_id}"
         )
