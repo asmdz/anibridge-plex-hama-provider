@@ -98,6 +98,9 @@ class PlexLibraryMedia(LibraryMedia):
         self._item = item
         self._media_kind = kind
 
+        self._key = str(item.guid) if item.guid else str(item.ratingKey)
+        self._title = item.title
+
     @property
     def external_url(self) -> str | None:
         """URL to the Plex online page, if available."""
@@ -139,9 +142,10 @@ class PlexLibraryEntry(LibraryEntry):
         self._section = section
         self._item = item
         self._media_kind = kind
-        self._media = PlexLibraryMedia(provider, section, item, kind)
+
         self._key = str(item.ratingKey)
         self._title = item.title
+        self._media = PlexLibraryMedia(provider, section, item, kind)
 
     def mapping_descriptors(self) -> Sequence[MappingDescriptor]:
         """Return mapping descriptors for this media item.
