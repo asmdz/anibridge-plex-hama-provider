@@ -81,12 +81,6 @@ class PlexClient:
         self._continue_cache: dict[str, _FrozenCacheEntry] = {}
         self._ordering_cache: dict[int, Literal["tmdb", "tvdb", ""]] = {}
         self._watchlist_cache: _FrozenCacheEntry | None = None
-        self._on_deck_window: timedelta | None = None
-
-    @property
-    def on_deck_window(self) -> timedelta | None:
-        """Return the configured on-deck time window if available."""
-        return self._on_deck_window
 
     async def initialize(self) -> None:
         """Establish the Plex session and prime provider caches."""
@@ -109,20 +103,6 @@ class PlexClient:
             ]
         )
 
-        def _on_deck_window_sync() -> timedelta | None:
-            user_client = self._user_client
-            if user_client is None:
-                return None
-            try:
-                window_value = user_client.settings.get("onDeckWindow").value
-            except Exception:
-                return None
-            try:
-                return timedelta(weeks=float(window_value))
-            except TypeError, ValueError:
-                return None
-
-        self._on_deck_window = await asyncio.to_thread(_on_deck_window_sync)
         self.clear_cache()
 
     def _initialize_clients(

@@ -98,7 +98,6 @@ async def test_initialize_populates_state_and_sections(
     assert plex_client.user_id == 1
     assert plex_client.display_name == "demo"
     assert plex_client.sections()
-    assert plex_client.on_deck_window == timedelta(weeks=2)
     assert not plex_client._continue_cache
     assert not plex_client._ordering_cache
 
