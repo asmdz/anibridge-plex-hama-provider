@@ -175,13 +175,12 @@ class PlexClient:
         if user_id is None:
             raise ValueError("Unable to resolve Plex account id for the active user")
 
-        display_name = next(
-            (
-                candidate
-                for candidate in (account.username, account.email, account.title)
-                if candidate
-            ),
-            f"Plex User ({user_id})",
+        display_name = (
+            account.title
+            or account.username
+            or account.email
+            or self._home_user
+            or "unknown user"
         )
 
         return (user_client, account, user_id, display_name)
