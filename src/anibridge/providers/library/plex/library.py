@@ -62,12 +62,7 @@ class PlexLibrarySection(LibrarySection):
     def __init__(
         self, provider: PlexLibraryProvider, item: plexapi_library.LibrarySection
     ) -> None:
-        """Represent a Plex library section.
-
-        Args:
-            provider (PlexLibraryProvider): The owning Plex library provider.
-            item (plexapi_library.LibrarySection): The underlying Plex section.
-        """
+        """Represent a Plex library section."""
         self._provider = provider
         self._section = item
 
@@ -86,14 +81,7 @@ class PlexLibraryMedia(LibraryMedia):
         item: plexapi_video.Video,
         kind: MediaKind,
     ) -> None:
-        """Initialize the media wrapper.
-
-        Args:
-            provider (PlexLibraryProvider): The owning Plex library provider.
-            section (PlexLibrarySection): The parent Plex library section.
-            item (plexapi_video.Video): The underlying Plex media item.
-            kind (MediaKind): The kind of media represented.
-        """
+        """Initialize the media wrapper."""
         self._provider = provider
         self._section = section
         self._item = item
@@ -131,14 +119,7 @@ class PlexLibraryEntry(LibraryEntry):
         item: plexapi_video.Video,
         kind: MediaKind,
     ) -> None:
-        """Initialize the media wrapper.
-
-        Args:
-            provider (PlexLibraryProvider): The owning Plex library provider.
-            section (PlexLibrarySection): The parent Plex library section.
-            item (plexapi_video.Video): The underlying Plex media item.
-            kind (MediaKind): The kind of media represented.
-        """
+        """Initialize the media wrapper."""
         self._provider = provider
         self._section = section
         self._item = item
@@ -149,11 +130,7 @@ class PlexLibraryEntry(LibraryEntry):
         self._media = PlexLibraryMedia(provider, section, item, kind)
 
     def mapping_descriptors(self) -> Sequence[MappingDescriptor]:
-        """Return mapping descriptors for this media item.
-
-        Returns:
-            Sequence[MappingDescriptor]: The mapping descriptors.
-        """
+        """Return mapping descriptors for this media item."""
         raw_guids = [self._item.guid or ""] + [g.id for g in self._item.guids if g.id]
         descriptors: list[MappingDescriptor] = []
         for guid in raw_guids:
@@ -194,36 +171,20 @@ class PlexLibraryEntry(LibraryEntry):
         return self._item.viewCount or 0
 
     async def history(self) -> Sequence[HistoryEntry]:
-        """Fetch the viewing history for this media item.
-
-        Returns:
-            Sequence[HistoryEntry]: A sequence of history entries for this media item.
-        """
+        """Fetch the viewing history for this media item."""
         return await self._provider.get_history(self._item)
 
     def media(self) -> LibraryMedia:
-        """Return the media metadata for this item.
-
-        Returns:
-            LibraryMedia: The media metadata.
-        """
+        """Return the media metadata for this item."""
         return self._media
 
     @property
     async def review(self) -> str | None:
-        """Fetch the user's review for this media item, if available.
-
-        Returns:
-            str | None: The user's review text, or None if not reviewed.
-        """
+        """Fetch the user's review for this media item, if available."""
         return await self._provider.get_review(self._item)
 
     def section(self) -> PlexLibrarySection:
-        """Return the library section this media item belongs to.
-
-        Returns:
-            PlexLibrarySection: The parent library section.
-        """
+        """Return the library section this media item belongs to."""
         if self._section is not None:
             return self._section
 
@@ -243,13 +204,7 @@ class PlexLibraryMovie(PlexLibraryEntry, LibraryMovie):
         section: PlexLibrarySection,
         item: plexapi_video.Movie,
     ) -> None:
-        """Initialize the movie wrapper.
-
-        Args:
-            provider (PlexLibraryProvider): The owning Plex library provider.
-            section (PlexLibrarySection): The parent Plex library section.
-            item (plexapi_video.Movie): The underlying Plex movie item.
-        """
+        """Initialize the movie wrapper."""
         super().__init__(provider, section, item, MediaKind.MOVIE)
         self._item = cast(plexapi_video.Movie, self._item)
 
@@ -265,23 +220,13 @@ class PlexLibraryShow(PlexLibraryEntry, LibraryShow):
         section: PlexLibrarySection,
         item: plexapi_video.Show,
     ) -> None:
-        """Initialize the show wrapper.
-
-        Args:
-            provider (PlexLibraryProvider): The owning Plex library provider.
-            section (PlexLibrarySection): The parent Plex library section.
-            item (plexapi_video.Show): The underlying Plex show item.
-        """
+        """Initialize the show wrapper."""
         super().__init__(provider, section, item, MediaKind.SHOW)
         self._item = cast(plexapi_video.Show, self._item)
 
     @ttl_cache(ttl=30)
     def episodes(self) -> Sequence[PlexLibraryEpisode]:
-        """Return all episodes belonging to the show.
-
-        Returns:
-            Sequence[PlexLibraryEpisode]: All episodes in the show.
-        """
+        """Return all episodes belonging to the show."""
         seasons = self.seasons()
         if seasons and all(
             season.episodes.cache_info().currsize > 0 for season in seasons
@@ -307,24 +252,14 @@ class PlexLibraryShow(PlexLibraryEntry, LibraryShow):
 
     @ttl_cache(ttl=30)
     def seasons(self) -> Sequence[PlexLibrarySeason]:
-        """Return all seasons belonging to the show.
-
-        Returns:
-            Sequence[PlexLibrarySeason]: All seasons in the show.
-        """
+        """Return all seasons belonging to the show."""
         return tuple(
             PlexLibrarySeason(self._provider, self._section, season, show=self)
             for season in self._item.seasons()
         )
 
     def mapping_descriptors(self) -> Sequence[MappingDescriptor]:
-        """Return mapping descriptors for this show.
-
-        Includes additional logic to prefer show ordering.
-
-        Returns:
-            Sequence[MappingDescriptor]: The mapping descriptors.
-        """
+        """Return mapping descriptors for this show."""
         descriptors = super().mapping_descriptors()
         ordering = self._provider._client.get_ordering(
             cast(plexapi_video.Show, self._item)
@@ -363,14 +298,7 @@ class PlexLibrarySeason(PlexLibraryEntry, LibrarySeason):
         *,
         show: PlexLibraryShow | None = None,
     ) -> None:
-        """Initialize the season wrapper.
-
-        Args:
-            provider (PlexLibraryProvider): The owning Plex library provider.
-            section (PlexLibrarySection): The parent Plex library section.
-            item (plexapi_video.Season): The underlying Plex season item.
-            show (PlexLibraryShow | None): The parent show, if known.
-        """
+        """Initialize the season wrapper."""
         super().__init__(provider, section, item, MediaKind.SEASON)
         self._item = cast(plexapi_video.Season, self._item)
         self._show = show
@@ -378,11 +306,7 @@ class PlexLibrarySeason(PlexLibraryEntry, LibrarySeason):
 
     @ttl_cache(ttl=30)
     def episodes(self) -> Sequence[LibraryEpisode]:
-        """Return the episodes belonging to this season.
-
-        Returns:
-            Sequence[LibraryEpisode]: All episodes in the season.
-        """
+        """Return the episodes belonging to this season."""
         return tuple(
             PlexLibraryEpisode(
                 self._provider, self._section, episode, season=self, show=self._show
@@ -392,11 +316,7 @@ class PlexLibrarySeason(PlexLibraryEntry, LibrarySeason):
 
     @cache
     def show(self) -> LibraryShow:
-        """Return the parent show.
-
-        Returns:
-            LibraryShow: The parent show.
-        """
+        """Return the parent show."""
         if self._show is not None:
             return self._show
 
@@ -429,15 +349,7 @@ class PlexLibraryEpisode(PlexLibraryEntry, LibraryEpisode):
         season: PlexLibrarySeason | None = None,
         show: PlexLibraryShow | None = None,
     ) -> None:
-        """Initialize the episode wrapper.
-
-        Args:
-            provider (PlexLibraryProvider): The owning Plex library provider.
-            section (PlexLibrarySection): The parent Plex library section.
-            item (plexapi_video.Episode): The underlying Plex episode item.
-            season (PlexLibrarySeason | None): The parent season, if known.
-            show (PlexLibraryShow | None): The parent show, if known.
-        """
+        """Initialize the episode wrapper."""
         super().__init__(provider, section, item, MediaKind.EPISODE)
         self._item = cast(plexapi_video.Episode, self._item)
         self._show = show
@@ -447,11 +359,7 @@ class PlexLibraryEpisode(PlexLibraryEntry, LibraryEpisode):
 
     @cache
     def season(self) -> LibrarySeason:
-        """Return the parent season.
-
-        Returns:
-            LibrarySeason: The parent season.
-        """
+        """Return the parent season."""
         if self._season is not None:
             return self._season
 
@@ -471,11 +379,7 @@ class PlexLibraryEpisode(PlexLibraryEntry, LibraryEpisode):
 
     @cache
     def show(self) -> LibraryShow:
-        """Return the parent show.
-
-        Returns:
-            LibraryShow: The parent show.
-        """
+        """Return the parent show."""
         if self._show is not None:
             return self._show
 
@@ -505,12 +409,7 @@ class PlexLibraryProvider(LibraryProvider):
     NAMESPACE = "plex"
 
     def __init__(self, *, logger: ProviderLogger, config: dict | None = None) -> None:
-        """Parse configuration and prepare provider defaults.
-
-        Args:
-            logger (ProviderLogger): Injected AniBridge logger.
-            config (dict | None): Optional configuration options for the provider.
-        """
+        """Parse configuration and prepare provider defaults."""
         super().__init__(logger=logger, config=config)
         self.parsed_config = PlexProviderConfig.model_validate(config or {})
 
@@ -566,19 +465,11 @@ class PlexLibraryProvider(LibraryProvider):
         self.log.debug("Closed Plex provider")
 
     def user(self) -> LibraryUser | None:
-        """Return the Plex account represented by this provider.
-
-        Returns:
-            LibraryUser | None: The user information, or None if not available.
-        """
+        """Return the Plex account represented by this provider."""
         return self._user
 
     async def get_sections(self) -> Sequence[LibrarySection]:
-        """Enumerate Plex library sections visible to the provider user.
-
-        Returns:
-            Sequence[LibrarySection]: Available library sections.
-        """
+        """Enumerate Plex library sections visible to the provider user."""
         return tuple(self._sections)
 
     async def list_items(
@@ -593,18 +484,6 @@ class PlexLibraryProvider(LibraryProvider):
 
         Each item returned must belong to the specified section and meet the provided
         filtering criteria.
-
-        Args:
-            section (LibrarySection): The library section to list items from.
-            min_last_modified (datetime | None): If provided, only items modified after
-                this timestamp will be included.
-            require_watched (bool): If True, only include items that have been marked as
-                watched/viewed.
-            keys (Sequence[str] | None): If provided, only include items whose
-                media keys are in this list.
-
-        Returns:
-            Sequence[LibraryEntry]: The entries matching the criteria.
         """
         if not isinstance(section, PlexLibrarySection):
             self.log.warning(
@@ -663,37 +542,15 @@ class PlexLibraryProvider(LibraryProvider):
     def is_on_continue_watching(
         self, section: PlexLibrarySection, item: plexapi_video.Video
     ) -> bool:
-        """Determine whether the given item appears in the Continue Watching hub.
-
-        Args:
-            section (PlexLibrarySection): The library section the item belongs to.
-            item (plexapi_video.Video): The Plex media item to check.
-
-        Returns:
-            bool: True if the item is on the Continue Watching list, False otherwise.
-        """
+        """Determine whether the given item appears in the Continue Watching hub."""
         return self._client.is_on_continue_watching(section._section, item)
 
     def is_on_watchlist(self, item: plexapi_video.Video) -> bool:
-        """Determine whether the given item appears in the user's watchlist.
-
-        Args:
-            item (plexapi_video.Video): The Plex media item to check.
-
-        Returns:
-            bool: True if the item is on the watchlist, False otherwise.
-        """
+        """Determine whether the given item appears in the user's watchlist."""
         return self._client.is_on_watchlist(item)
 
     async def get_review(self, item: plexapi_video.Video) -> str | None:
-        """Fetch the user's review for the provided Plex item, if available.
-
-        Args:
-            item (plexapi_video.Video): The Plex media item to fetch the review for.
-
-        Returns:
-            str | None: The user's review text, or None if not reviewed.
-        """
+        """Fetch the user's review for the provided Plex item, if available."""
         if item.userRating is None and item.lastRatedAt is None:  # Prereq for reviews
             return None
         if self._community_client is None or not item.guid:
@@ -706,14 +563,7 @@ class PlexLibraryProvider(LibraryProvider):
             return None
 
     async def get_history(self, item: plexapi_video.Video) -> Sequence[HistoryEntry]:
-        """Return the watch history for the given Plex item.
-
-        Args:
-            item (plexapi_video.Video): The Plex media item to fetch history for.
-
-        Returns:
-            Sequence[HistoryEntry]: A sequence of history entries for the media item.
-        """
+        """Return the watch history for the given Plex item."""
         plex_history = await self._client.fetch_history(item)
 
         if isinstance(item, (plexapi_video.Show, plexapi_video.Season)):
