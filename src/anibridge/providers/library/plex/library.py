@@ -174,7 +174,7 @@ class PlexLibraryEntry(LibraryEntry):
         """Fetch the viewing history for this media item."""
         return await self._provider.get_history(self._item)
 
-    def media(self) -> LibraryMedia:
+    def media(self) -> PlexLibraryMedia:
         """Return the media metadata for this item."""
         return self._media
 
@@ -224,33 +224,12 @@ class PlexLibraryShow(PlexLibraryEntry, LibraryShow):
         super().__init__(provider, section, item, MediaKind.SHOW)
         self._item = cast(plexapi_video.Show, self._item)
 
-    @ttl_cache(ttl=30)
     def episodes(self) -> Sequence[PlexLibraryEpisode]:
         """Return all episodes belonging to the show."""
         seasons = self.seasons()
-        if seasons and all(
-            season.episodes.cache_info().currsize > 0 for season in seasons
-        ):
-            return tuple(
-                episode
-                for season in seasons
-                for episode in cast(Sequence[PlexLibraryEpisode], season.episodes())
-            )
+        return tuple(episode for season in seasons for episode in season.episodes())
 
-        episodes: list[PlexLibraryEpisode] = []
-        seasons_by_key = {season.key: season for season in seasons}
-        for episode in self._item.episodes():
-            wrapped_episode = PlexLibraryEpisode(
-                self._provider,
-                self._section,
-                episode,
-                season=seasons_by_key.get(str(getattr(episode, "parentRatingKey", ""))),
-                show=self,
-            )
-            episodes.append(wrapped_episode)
-        return tuple(episodes)
-
-    @ttl_cache(ttl=30)
+    @ttl_cache(ttl=15)
     def seasons(self) -> Sequence[PlexLibrarySeason]:
         """Return all seasons belonging to the show."""
         return tuple(
@@ -304,8 +283,8 @@ class PlexLibrarySeason(PlexLibraryEntry, LibrarySeason):
         self._show = show
         self.index = self._item.index
 
-    @ttl_cache(ttl=30)
-    def episodes(self) -> Sequence[LibraryEpisode]:
+    @ttl_cache(15)
+    def episodes(self) -> Sequence[PlexLibraryEpisode]:
         """Return the episodes belonging to this season."""
         return tuple(
             PlexLibraryEpisode(
@@ -315,7 +294,7 @@ class PlexLibrarySeason(PlexLibraryEntry, LibrarySeason):
         )
 
     @cache
-    def show(self) -> LibraryShow:
+    def show(self) -> PlexLibraryShow:
         """Return the parent show."""
         if self._show is not None:
             return self._show
@@ -358,7 +337,7 @@ class PlexLibraryEpisode(PlexLibraryEntry, LibraryEpisode):
         self.season_index = self._item.parentIndex
 
     @cache
-    def season(self) -> LibrarySeason:
+    def season(self) -> PlexLibrarySeason:
         """Return the parent season."""
         if self._season is not None:
             return self._season
@@ -373,12 +352,12 @@ class PlexLibraryEpisode(PlexLibraryEntry, LibraryEpisode):
             self._provider,
             self._section,
             raw_season,
-            show=cast(PlexLibraryShow, self.show()),
+            show=self.show(),
         )
         return self._season
 
     @cache
-    def show(self) -> LibraryShow:
+    def show(self) -> PlexLibraryShow:
         """Return the parent show."""
         if self._show is not None:
             return self._show
@@ -446,7 +425,6 @@ class PlexLibraryProvider(LibraryProvider):
                 logger=self.log.getChild("community_client"),
             )
 
-        await self.clear_cache()
         self.log.debug(
             "Plex provider initialized for user id=%s with %s sections",
             self._user.key,
@@ -538,6 +516,12 @@ class PlexLibraryProvider(LibraryProvider):
     async def clear_cache(self) -> None:
         """Reset any cached Plex responses maintained by the provider."""
         self._client.clear_cache()
+        # Note this clears the class level caches, which will be a no-op since the
+        # caches used here are instance level. However, I'm leaving this in place
+        # in case anibridge-utils caches support instance level cache clearing from
+        # the class call in the future.
+        PlexLibraryShow.seasons.cache_clear()
+        PlexLibrarySeason.episodes.cache_clear()
 
     def is_on_continue_watching(
         self, section: PlexLibrarySection, item: plexapi_video.Video
@@ -629,7 +613,7 @@ class PlexLibraryProvider(LibraryProvider):
 
     def _wrap_entry(
         self, section: PlexLibrarySection, item: plexapi_video.Video
-    ) -> LibraryEntry:
+    ) -> PlexLibraryEntry:
         """Wrap a Plex entry in the appropriate library entry class."""
         if isinstance(item, plexapi_video.Episode):
             return PlexLibraryEpisode(self, section, item)
