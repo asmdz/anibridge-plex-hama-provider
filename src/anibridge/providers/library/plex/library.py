@@ -501,13 +501,13 @@ class PlexLibraryProvider(LibraryProvider):
             and self._user
             and self._user.key == str(payload.account_id)
         ):
-            self.log.info(
+            self.log.debug(
                 f"Webhook: Matched webhook event {payload.event_type} to provider user "
                 f"ID {self._user.key} for sync"
             )
             return (True, (payload.top_level_rating_key,))
 
-        self.log.info(
+        self.log.debug(
             f"Webhook: Ignoring event {payload.event_type} for account ID "
             f"{payload.account_id}"
         )

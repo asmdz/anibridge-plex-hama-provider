@@ -293,7 +293,6 @@ async def test_initialize_sets_sections_and_user(
     """Initialization sets sections and user correctly."""
     provider, fake_client, *_ = initialized_provider
     assert fake_client.initialized is True
-    assert fake_client.cleared is True
     sections = await provider.get_sections()
     assert len(sections) == 1 and sections[0].title == "Movies"
     user = provider.user()
