@@ -23,8 +23,8 @@ classifiers = [
 
 dependencies = [
     "aiohttp>=3.13.3",
-    "anibridge-library-base>=0.2.0b6",
-    "anibridge-utils>=0.2.0b5",
+    "anibridge-library-base>=0.2.0b",
+    "anibridge-utils>=0.2.0b",
     "plexapi>=4.18.0",
     "pydantic>=2.12.5",
     "requests>=2.32.0",
