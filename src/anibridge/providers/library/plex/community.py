@@ -36,7 +36,7 @@ class PlexCommunityClient:
                 "Accept": "application/json",
                 "Content-Type": "application/json",
                 "User-Agent": "AniBridge/"
-                + importlib.metadata.version("anibridge-plex-provider"),
+                + importlib.metadata.version("anibridge-plex-hama-provider"),
                 "X-Plex-Token": self.plex_token,
             }
             self._session = aiohttp.ClientSession(headers=headers)

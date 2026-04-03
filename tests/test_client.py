@@ -8,7 +8,7 @@ from typing import Any, cast
 import pytest
 from anibridge.utils.types import ProviderLogger
 
-import anibridge.providers.library.plex.client as client_module
+import anibridge_plex_hama_provider.client as client_module
 
 
 def _server_stub(**kwargs: Any) -> client_module.PlexServer:

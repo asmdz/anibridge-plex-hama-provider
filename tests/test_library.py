@@ -10,8 +10,8 @@ import pytest_asyncio
 from anibridge.utils.types import ProviderLogger
 from starlette.requests import Request
 
-import anibridge.providers.library.plex.client as client_module
-import anibridge.providers.library.plex.library as library_module
+import anibridge_plex_hama_provider.client as client_module
+import anibridge_plex_hama_provider.library as library_module
 
 
 def _server_stub(**kwargs: Any) -> client_module.PlexServer:

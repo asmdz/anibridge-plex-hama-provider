@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 import requests
 
-from anibridge.providers.library.plex.utils import SelectiveVerifySession
+from anibridge_plex_hama_provider.utils import SelectiveVerifySession
 
 
 class _Recorder:

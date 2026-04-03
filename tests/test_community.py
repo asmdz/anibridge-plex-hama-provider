@@ -8,7 +8,7 @@ import aiohttp
 import pytest
 from anibridge.utils.types import ProviderLogger
 
-from anibridge.providers.library.plex.community import PlexCommunityClient
+from anibridge_plex_hama_provider.community import PlexCommunityClient
 
 
 class StubResponse:
@@ -75,11 +75,11 @@ async def test_get_session_initializes_headers(monkeypatch: pytest.MonkeyPatch):
             self.closed = True
 
     monkeypatch.setattr(
-        "anibridge.providers.library.plex.community.importlib.metadata.version",
+        "anibridge_plex_hama_provider.community.importlib.metadata.version",
         lambda _: "1.2.3",
     )
     monkeypatch.setattr(
-        "anibridge.providers.library.plex.community.aiohttp.ClientSession",
+        "anibridge_plex_hama_provider.community.aiohttp.ClientSession",
         DummySession,
     )
 

@@ -1,8 +1,9 @@
-# anibridge-plex-provider
+# anibridge-plex-hama-provider
 
 An [AniBridge](https://github.com/anibridge/anibridge) provider for [Plex](https://www.plex.tv/).
 
-_This provider comes built-in with AniBridge, so you don't need to install it separately._
+Forked from [anibridge/anibridge-plex-provider](https://github.com/anibridge/anibridge-plex-provider) and extended with
+basic support for the [HAMA](https://github.com/ZeroQI/Hama.bundle) agent.
 
 ## Configuration
 

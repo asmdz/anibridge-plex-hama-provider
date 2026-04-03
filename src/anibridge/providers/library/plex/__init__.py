@@ -4,7 +4,7 @@ import importlib.metadata
 import os
 import uuid
 
-from anibridge.providers.library.plex.library import PlexLibraryProvider
+from anibridge_plex_hama_provider.library import PlexLibraryProvider
 
 __all__ = ["PlexLibraryProvider"]
 
@@ -18,7 +18,7 @@ os.environ["PLEXAPI_HEADER_IDENTIFIER"] = uuid.uuid3(
 ).hex
 os.environ["PLEXAPI_HEADER_DEVICE_NAME"] = "AniBridge"
 os.environ["PLEXAPI_HEADER_VERSION"] = importlib.metadata.version(
-    "anibridge-plex-provider"
+    "anibridge-plex-hama-provider"
 )
 os.environ["PLEXAPI_HEADER_PROVIDES"] = ""
 os.environ["PLEXAPI_PLEXAPI_AUTORELOAD"] = "0"

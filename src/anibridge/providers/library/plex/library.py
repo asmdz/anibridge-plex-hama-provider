@@ -26,10 +26,10 @@ from anibridge.utils.cache import cache, ttl_cache
 from anibridge.utils.datetime import normalize_local_datetime
 from anibridge.utils.types import ProviderLogger
 
-from anibridge.providers.library.plex.client import PlexClient
-from anibridge.providers.library.plex.community import PlexCommunityClient
-from anibridge.providers.library.plex.config import PlexProviderConfig
-from anibridge.providers.library.plex.webhook import PlexWebhookEventType, WebhookParser
+from anibridge_plex_hama_provider.client import PlexClient
+from anibridge_plex_hama_provider.community import PlexCommunityClient
+from anibridge_plex_hama_provider.config import PlexProviderConfig
+from anibridge_plex_hama_provider.webhook import PlexWebhookEventType, WebhookParser
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -55,6 +55,21 @@ _GUID_NAMESPACE_MAP: dict[MediaKind, dict[str, str]] = {
     },
 }
 
+"""
+If anything hama related shows up in "Not Found", then this is the first place to look to add mappings to.
+The initial ones added cover the applicable providers in the initial test library.
+Naming schemes which reorder seasons are not properly supported (for example "anidb3" or "anidb4") since they will
+potentially be placed in the wrong scopes. Cases where this is applicable are fixed manually via custom mappings atm.
+"""
+_HAMA_GUID_NAMESPACE_MAP: dict[MediaKind, dict[str, str]] = {
+    MediaKind.MOVIE: {
+    },
+    MediaKind.SHOW: {
+        "anidb": "anidb",
+        "tvdb": "tvdb_show",
+        "tvdb6": "tvdb_show",
+    },
+}
 
 class PlexLibrarySection(LibrarySection):
     """Concrete `LibrarySection` backed by a python-plexapi library section."""
@@ -137,11 +152,20 @@ class PlexLibraryEntry(LibraryEntry):
             if not guid or "://" not in guid:
                 continue
             prefix, suffix = guid.split("://", 1)
-            guid_namespace = _GUID_NAMESPACE_MAP.get(self._media_kind, {}).get(prefix)
-            if guid_namespace is None:
-                continue
-            # Strip query params
-            descriptors.append((guid_namespace, suffix.split("?", 1)[0], None))
+
+            if prefix == "com.plexapp.agents.hama":
+                sub_prefix, sub_suffix = suffix.split("-", 1)
+                hama_guid_namespace = _HAMA_GUID_NAMESPACE_MAP.get(self._media_kind, {}).get(sub_prefix)
+                if hama_guid_namespace is None:
+                    continue
+                # Strip query params
+                descriptors.append((hama_guid_namespace, sub_suffix.split("?", 1)[0], None))
+            else:
+                guid_namespace = _GUID_NAMESPACE_MAP.get(self._media_kind, {}).get(prefix)
+                if guid_namespace is None:
+                    continue
+                # Strip query params
+                descriptors.append((guid_namespace, suffix.split("?", 1)[0], None))
         return descriptors
 
     @property
@@ -312,7 +336,11 @@ class PlexLibrarySeason(PlexLibraryEntry, LibrarySeason):
         """Return mapping descriptors with season scopes applied."""
         descriptors: list[MappingDescriptor] = []
         for descriptor in self.show().mapping_descriptors():
-            descriptors.append((descriptor[0], descriptor[1], f"s{self.index}"))
+            if descriptor[0] == "anidb":
+                scope = "S" if self.index == 0 else "R"
+                descriptors.append((descriptor[0], descriptor[1], scope))
+            else:
+                descriptors.append((descriptor[0], descriptor[1], f"s{self.index}"))
         return tuple(descriptors)
 
 
@@ -385,11 +413,12 @@ class PlexLibraryEpisode(PlexLibraryEntry, LibraryEpisode):
 class PlexLibraryProvider(LibraryProvider):
     """Default Plex `LibraryProvider` backed by the local Plex Media Server."""
 
-    NAMESPACE = "plex"
+    NAMESPACE = "plex_hama"
 
     def __init__(self, *, logger: ProviderLogger, config: dict | None = None) -> None:
         """Parse configuration and prepare provider defaults."""
         super().__init__(logger=logger, config=config)
+        self.log.debug("Weeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
         self.parsed_config = PlexProviderConfig.model_validate(config or {})
 
         self._client = PlexClient(
